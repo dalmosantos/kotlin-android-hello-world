@@ -76,7 +76,7 @@ jobs:
         run: |
           mkdir -p $ANDROID_HOME/cmdline-tools
           page_url="https://developer.android.com/studio#command-tools"
-          latest_url=$(curl -s $page_url | grep -oP 'https:\/\/dl\.google\.com\/android\/repository\/commandlinetools-mac-[0-9]+_latest\.zip' | head -n 1)
+          latest_url=$(curl -s $page_url | grep -oE 'https:\/\/dl\.google\.com\/android\/repository\/commandlinetools-mac-[0-9]+_latest\.zip' | head -n 1)
           if [ -z "$latest_url" ]; then
             echo "Failed to fetch the latest command-line tools URL."
             exit 1
