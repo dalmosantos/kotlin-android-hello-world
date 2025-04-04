@@ -33,7 +33,7 @@ jobs:
 
     defaults:
       run:
-        shell: zsh
+        shell: bash
 
     steps:
       - name: Set SYSTEM_IMAGE based on architecture
