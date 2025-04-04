@@ -92,7 +92,8 @@ jobs:
         timeout-minutes: 15
         run: |
           printf "y\ny\ny\ny\ny\ny\ny\ny\n" | sdkmanager --licenses
-          sdkmanager -y \
+          sdkmanager --install \
+            "tools" \
             "platform-tools" \
             "platforms;android-${{ matrix.android-version.api }}" \
             "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" \
