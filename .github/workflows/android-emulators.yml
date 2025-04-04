@@ -1,0 +1,181 @@
+name: Android Emulators
+
+on: [push, pull_request]
+
+jobs:
+  android-emulator-test:
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    env:
+      ANDROID_HOME: ${{ github.workspace }}/android-sdk
+      TZ: America/Sao_Paulo
+      LANG: en_US.UTF-8
+      LC_ALL: en_US.UTF-8
+      ARTIFACTS_BASE_PATH: artifacts/${{ matrix.android-version.api }}
+      SYSTEM_IMAGE: google_apis;x86_64
+
+    strategy:
+      matrix:
+        android-version: [
+          { api: 24, name: "7" },
+          { api: 26, name: "8" },
+          { api: 28, name: "9" },
+          { api: 29, name: "10" },
+          { api: 30, name: "11" },
+          { api: 31, name: "12" },
+          { api: 33, name: "13" },
+          { api: 34, name: "14" }
+        ]
+      fail-fast: false
+
+    name: android-emulator-test {version:${{ matrix.android-version.name }},api:${{ matrix.android-version.api }}}
+
+    defaults:
+      run:
+        shell: zsh
+
+    steps:
+      - name: Set SYSTEM_IMAGE based on architecture
+        run: |
+          ARCHITECTURE=$(uname -m)
+          if [ "$ARCHITECTURE" == "x86_64" ]; then
+            echo "SYSTEM_IMAGE=google_apis;x86_64" >> $GITHUB_ENV
+          elif [ "$ARCHITECTURE" == "arm64" ]; then
+            echo "SYSTEM_IMAGE=google_apis;arm64-v8a" >> $GITHUB_ENV
+          else
+            echo "Unsupported architecture: $ARCHITECTURE"
+            exit 1
+          fi
+
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Validate Gradle wrapper
+        uses: gradle/wrapper-validation-action@v1
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: 'temurin'
+
+      - name: Setup Gradle Cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            ~/.android
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Install Android SDK
+        timeout-minutes: 15
+        run: |
+          mkdir -p $ANDROID_HOME/cmdline-tools
+          page_url="https://developer.android.com/studio#command-tools"
+          latest_url=$(curl -s $page_url | grep -oP 'https:\/\/dl\.google\.com\/android\/repository\/commandlinetools-mac-[0-9]+_latest\.zip' | head -n 1)
+          if [ -z "$latest_url" ]; then
+            echo "Failed to fetch the latest command-line tools URL."
+            exit 1
+          fi
+          curl -o cmdline-tools.zip $latest_url
+          unzip cmdline-tools.zip -d $ANDROID_HOME/cmdline-tools
+          mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
+          echo "$ANDROID_HOME/emulator" >> $GITHUB_PATH
+
+      - name: Accept licenses and install SDK components
+        timeout-minutes: 15
+        run: |
+          yes | sdkmanager --licenses
+          sdkmanager -y \
+            "platform-tools" \
+            "platforms;android-${{ matrix.android-version.api }}" \
+            "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" \
+            "emulator"
+
+      - name: Build the project
+        run: |
+          unset ANDROID_SDK_ROOT
+          ./gradlew build --no-daemon
+
+      - name: Create and start emulator
+        timeout-minutes: 15
+        run: |
+          echo "Creating AVD..."
+          echo "no" | avdmanager create avd -n test -k "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" --force
+
+          export ANDROID_EMULATOR_USE_SYSTEM_LIBS=1
+          echo "Starting emulator..."
+          $ANDROID_HOME/emulator/emulator \
+            -avd test \
+            -no-window \
+            -no-audio \
+            -no-boot-anim \
+            -no-snapshot \
+            -gpu swiftshader_indirect \
+            -memory 4096 \
+            -qemu -enable-kvm &
+
+      - name: Wait for emulator boot completion
+        timeout-minutes: 10
+        run: |
+          MAX_ATTEMPTS=10
+          SLEEP_INTERVAL=15
+          for ((attempt=1; attempt <= MAX_ATTEMPTS; attempt++)); do
+              if [ "$(adb shell getprop sys.boot_completed 2>/dev/null || echo 0)" == "1" ]; then
+                  echo "Emulator booted successfully!"
+                  break
+              fi
+              echo "Waiting for emulator... Attempt $attempt of $MAX_ATTEMPTS"
+              sleep $SLEEP_INTERVAL
+          done
+          if [ "$(adb shell getprop sys.boot_completed 2>/dev/null || echo 0)" != "1" ]; then
+              echo "Emulator failed to boot within timeout."
+              exit 1
+          fi
+          adb shell input keyevent 82
+
+      - name: Upload APK to emulator
+        run: |
+          adb install app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Run instrumentation tests
+        run: |
+          unset ANDROID_SDK_ROOT
+          ./gradlew connectedAndroidTest --no-daemon --parallel
+
+      - name: Capture emulator screenshot
+        if: always()
+        run: |
+          mkdir -p ${{ env.ARTIFACTS_BASE_PATH }}/screenshots
+          adb exec-out screencap -p > ${{ env.ARTIFACTS_BASE_PATH }}/screenshots/emulator-screenshot-${{ matrix.android-version.api }}.png
+
+      - name: Upload screenshot artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: emulator-screenshot-android-${{ matrix.android-version.api }}
+          path: ${{ env.ARTIFACTS_BASE_PATH }}/screenshots/*.png
+
+      - name: Upload test results artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-api-${{ matrix.android-version.api }}
+          path: |
+            ${{ env.ARTIFACTS_BASE_PATH }}/results/**/build/reports/
+            ${{ env.ARTIFACTS_BASE_PATH }}/results/**/build/outputs/androidTest-results/
+          retention-days: 1
+
+      - name: Clean up and stop emulator
+        if: always()
+        run: |
+          adb emu kill || echo "Emulator already stopped"
+          rm -rf $ANDROID_HOME
+          echo "Cleaning workspace..."
+          rm -rf ${{ github.workspace }}/*
