@@ -91,7 +91,7 @@ jobs:
       - name: Accept licenses and install SDK components
         timeout-minutes: 15
         run: |
-          yes | sdkmanager --licenses
+          printf "y\ny\ny\ny\ny\ny\ny\ny\n" | sdkmanager --licenses
           sdkmanager -y \
             "platform-tools" \
             "platforms;android-${{ matrix.android-version.api }}" \
