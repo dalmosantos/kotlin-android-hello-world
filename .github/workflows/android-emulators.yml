@@ -94,6 +94,7 @@ jobs:
           printf "y\ny\ny\ny\ny\ny\ny\ny\n" | sdkmanager --licenses
           sdkmanager --install \
             "tools" \
+            "build-tools;${{matrix.android-version.api }}" \
             "platform-tools" \
             "platforms;android-${{ matrix.android-version.api }}" \
             "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" \
