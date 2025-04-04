@@ -14,17 +14,17 @@ jobs:
       LC_ALL: en_US.UTF-8
       ARTIFACTS_BASE_PATH: artifacts/${{ matrix.android-version.api }}
       SYSTEM_IMAGE: google_apis;x86_64
-      
+
 
     strategy:
       matrix:
         android-version: [
           { api: 24, name: "7" },
           { api: 26, name: "8" },
-          { api: 28, name: "9" },
-          { api: 29, name: "10" },
-          { api: 30, name: "11" },
-          { api: 31, name: "12" },
+          # { api: 28, name: "9" },
+          # { api: 29, name: "10" },
+          # { api: 30, name: "11" },
+          # { api: 31, name: "12" },
           { api: 33, name: "13" },
           { api: 34, name: "14" }
         ]
@@ -123,6 +123,16 @@ jobs:
           echo "Creating AVD..."
           echo "no" | avdmanager create avd -n test -k "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" --force
 
+          if ! emulator -list-avds; then
+            echo "Error: Failed to list AVDs."
+            exit 1
+          fi
+
+          memory_size=3072
+          if [ ${{ matrix.android-version.api }} -eq 24 ]; then
+            memory_size=2048
+          fi
+
           export ANDROID_EMULATOR_USE_SYSTEM_LIBS=1
           echo "Starting emulator..."
           $ANDROID_HOME/emulator/emulator \
@@ -132,9 +142,9 @@ jobs:
             -no-boot-anim \
             -no-snapshot \
             -gpu swiftshader_indirect \
-            -memory 4096 \
-            -qemu -enable-kvm &
-
+            -memory $memory_size \
+            -cores 2 &
+          
       - name: Wait for emulator boot completion
         timeout-minutes: 10
         run: |
