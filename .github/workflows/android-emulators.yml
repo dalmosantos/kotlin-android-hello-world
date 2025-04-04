@@ -14,6 +14,7 @@ jobs:
       LC_ALL: en_US.UTF-8
       ARTIFACTS_BASE_PATH: artifacts/${{ matrix.android-version.api }}
       SYSTEM_IMAGE: google_apis;x86_64
+      
 
     strategy:
       matrix:
@@ -88,13 +89,24 @@ jobs:
           echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
           echo "$ANDROID_HOME/emulator" >> $GITHUB_PATH
 
+      - name: Detect latest build-tools version
+        id: detect_build_tools
+        run: |
+          latest_version=$(sdkmanager --list | grep -o 'build-tools;[0-9]\+\.[0-9]\+\.[0-9]\+' | sed 's/build-tools;//' | sort -V | tail -1)
+          if [ -z "$latest_version" ]; then
+            echo "Could not determine the latest build-tools version."
+            exit 1
+          fi
+          echo "Latest detected build-tools version: $latest_version"
+          echo "BUILD_TOOLS_VERSION=$latest_version" >> $GITHUB_ENV
+  
       - name: Accept licenses and install SDK components
         timeout-minutes: 15
         run: |
           printf "y\ny\ny\ny\ny\ny\ny\ny\n" | sdkmanager --licenses
           sdkmanager --install \
             "tools" \
-            "build-tools;${{matrix.android-version.api }}" \
+            "build-tools;${{ env.BUILD_TOOLS_VERSION }}" \
             "platform-tools" \
             "platforms;android-${{ matrix.android-version.api }}" \
             "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" \
