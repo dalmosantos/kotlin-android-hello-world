@@ -147,7 +147,7 @@ jobs:
             -no-audio \
             -no-boot-anim \
             -no-snapshot \
-            -accel auto \
+            -no-accel \
             -gpu swiftshader_indirect \
             -memory $memory_size \
             -cores 2 &
