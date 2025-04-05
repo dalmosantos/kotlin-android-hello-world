@@ -40,6 +40,7 @@ jobs:
       - name: Set SYSTEM_IMAGE based on architecture
         run: |
           ARCHITECTURE=$(uname -m)
+          echo "# --- Detected architecture: $ARCHITECTURE ---#"
           if [ "$ARCHITECTURE" == "x86_64" ]; then
             echo "SYSTEM_IMAGE=google_apis;x86_64" >> $GITHUB_ENV
           elif [ "$ARCHITECTURE" == "arm64" ]; then
@@ -49,13 +50,13 @@ jobs:
             exit 1
           fi
 
+      - name: Checkout code
+        uses: actions/checkout@v3
+
       - name: Write entitlements
         run: |
           chmod +x .github/scripts/write_entitlements.sh
           .github/scripts/write_entitlements.sh
-
-      - name: Checkout code
-        uses: actions/checkout@v3
 
       - name: Validate Gradle wrapper
         uses: gradle/wrapper-validation-action@v1
