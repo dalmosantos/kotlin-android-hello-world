@@ -43,7 +43,7 @@ jobs:
           if [ "$ARCHITECTURE" == "x86_64" ]; then
             echo "SYSTEM_IMAGE=google_apis;x86_64" >> $GITHUB_ENV
           elif [ "$ARCHITECTURE" == "arm64" ]; then
-            echo "SYSTEM_IMAGE=google_apis_playstore;arm64-v8a" >> $GITHUB_ENV
+            echo "SYSTEM_IMAGE=google_apis;arm64-v8a" >> $GITHUB_ENV
           else
             echo "Unsupported architecture: $ARCHITECTURE"
             exit 1
