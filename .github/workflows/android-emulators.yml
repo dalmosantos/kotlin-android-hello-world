@@ -4,7 +4,7 @@ on: [push, pull_request]
 
 jobs:
   android-emulator-test:
-    runs-on: macos-latest
+    runs-on: macos-14
     timeout-minutes: 60
 
     env:
@@ -48,6 +48,9 @@ jobs:
             echo "Unsupported architecture: $ARCHITECTURE"
             exit 1
           fi
+
+      - name: Write entitlements
+        run: ./scripts/write_entitlements.sh
 
       - name: Checkout code
         uses: actions/checkout@v3
