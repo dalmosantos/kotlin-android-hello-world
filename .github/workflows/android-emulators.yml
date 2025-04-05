@@ -15,7 +15,6 @@ jobs:
       ARTIFACTS_BASE_PATH: artifacts/${{ matrix.android-version.api }}
       SYSTEM_IMAGE: google_apis;x86_64
 
-
     strategy:
       matrix:
         android-version: [
@@ -43,8 +42,6 @@ jobs:
           echo "# --- Detected architecture: $ARCHITECTURE ---#"
           if [ "$ARCHITECTURE" == "x86_64" ]; then
             echo "SYSTEM_IMAGE=google_apis;x86_64" >> $GITHUB_ENV
-          elif [ "$ARCHITECTURE" == "arm64" ]; then
-            echo "SYSTEM_IMAGE=google_apis;arm64-v8a" >> $GITHUB_ENV
           else
             echo "Unsupported architecture: $ARCHITECTURE"
             exit 1
@@ -126,6 +123,7 @@ jobs:
       - name: Create and start emulator
         timeout-minutes: 15
         run: |
+          set -euo pipefail
           echo "Creating AVD..."
           echo "no" | avdmanager create avd -n test -k "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" --force
 
@@ -147,10 +145,18 @@ jobs:
             -no-audio \
             -no-boot-anim \
             -no-snapshot \
-            -no-accel \
             -gpu swiftshader_indirect \
+            -accel auto \
             -memory $memory_size \
             -cores 2 &
+            
+          EMULATOR_PID=$!
+          sleep 5
+          if ! ps -p $EMULATOR_PID > /dev/null; then
+            echo "Error: Emulator failed to start (PID: $EMULATOR_PID)"
+            exit 1
+          fi
+          echo "Emulator started with PID: $EMULATOR_PID"
           
       - name: Wait for emulator boot completion
         timeout-minutes: 10
