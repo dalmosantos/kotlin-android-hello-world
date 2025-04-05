@@ -109,7 +109,6 @@ jobs:
         timeout-minutes: 15
         run: |
           printf "y\ny\ny\ny\ny\ny\ny\ny\n" | sdkmanager --licenses
-          brew install intel-haxm
           sdkmanager --update
           sdkmanager --install \
             "tools" \
@@ -169,6 +168,7 @@ jobs:
             -camera-back none \
             -no-boot-anim \
             -no-snapshot \
+            -accel auto \
             -gpu swiftshader_indirect \
             -memory $memory_size \
             -cores 2 \
