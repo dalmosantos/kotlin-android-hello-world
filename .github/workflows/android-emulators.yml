@@ -36,18 +36,18 @@ jobs:
         shell: bash
 
     steps:
-      - name: Set SYSTEM_IMAGE based on architecture
-        run: |
-          ARCHITECTURE=$(uname -m)
-          echo "# --- Detected architecture: $ARCHITECTURE ---#"
-          if [ "$ARCHITECTURE" == "x86_64" ]; then
-            echo "SYSTEM_IMAGE=google_apis;x86_64" >> $GITHUB_ENV
-          elif [ "$ARCHITECTURE" == "arm64" ]; then
-            echo "SYSTEM_IMAGE=google_apis;arm64-v8a" >> $GITHUB_ENV
-          else
-            echo "Unsupported architecture: $ARCHITECTURE"
-            exit 1
-          fi
+      # - name: Set SYSTEM_IMAGE based on architecture
+      #   run: |
+      #     ARCHITECTURE=$(uname -m)
+      #     echo "# --- Detected architecture: $ARCHITECTURE ---#"
+      #     if [ "$ARCHITECTURE" == "x86_64" ]; then
+      #       echo "SYSTEM_IMAGE=google_apis;x86_64" >> $GITHUB_ENV
+      #     elif [ "$ARCHITECTURE" == "arm64" ]; then
+      #       echo "SYSTEM_IMAGE=google_apis;arm64-v8a" >> $GITHUB_ENV
+      #     else
+      #       echo "Unsupported architecture: $ARCHITECTURE"
+      #       exit 1
+      #     fi
 
       - name: Checkout code
         uses: actions/checkout@v3
@@ -109,6 +109,7 @@ jobs:
         timeout-minutes: 15
         run: |
           printf "y\ny\ny\ny\ny\ny\ny\ny\n" | sdkmanager --licenses
+          brew install intel-haxm
           sdkmanager --update
           sdkmanager --install \
             "tools" \
@@ -130,9 +131,27 @@ jobs:
           echo "Creating AVD..."
           echo "no" | avdmanager create avd -n test -k "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" --force
 
-          if ! emulator -list-avds; then
-            echo "Error: Failed to list AVDs."
-            exit 1
+          if false; then
+          emulator_config=~/.android/avd/test.avd/config.ini
+          # The following madness is to support empty OR populated config.ini files,
+          # the state of which is dependant on the version of the emulator used (which we don't control),
+          # so let's be defensive to be safe.
+          # Replace existing config (NOTE we're on MacOS so sed works differently!)
+          sed -i .bak 's/hw.lcd.density=.*/hw.lcd.density=420/' "$emulator_config"
+          sed -i .bak 's/hw.lcd.height=.*/hw.lcd.height=1920/' "$emulator_config"
+          sed -i .bak 's/hw.lcd.width=.*/hw.lcd.width=1080/' "$emulator_config"
+          # Or, add new config
+          if ! grep -q "hw.lcd.density" "$emulator_config"; then
+            echo "hw.lcd.density=420" >> "$emulator_config"
+          fi
+          if ! grep -q "hw.lcd.height" "$emulator_config"; then
+            echo "hw.lcd.height=1920" >> "$emulator_config"
+          fi
+          if ! grep -q "hw.lcd.width" "$emulator_config"; then
+            echo "hw.lcd.width=1080" >> "$emulator_config"
+          fi
+          echo "Emulator settings ($emulator_config)"
+          cat "$emulator_config"
           fi
 
           memory_size=3072
@@ -146,11 +165,14 @@ jobs:
             -avd test \
             -no-window \
             -no-audio \
+            -camera-front none \
+            -camera-back none \
             -no-boot-anim \
             -no-snapshot \
             -gpu swiftshader_indirect \
             -memory $memory_size \
-            -cores 2 &
+            -cores 2 \
+            -qemu &
             
           EMULATOR_PID=$!
           sleep 5
