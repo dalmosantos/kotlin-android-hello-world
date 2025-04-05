@@ -50,7 +50,9 @@ jobs:
           fi
 
       - name: Write entitlements
-        run: ./scripts/write_entitlements.sh
+        run: |
+          chmod +x .github/scripts/write_entitlements.sh
+          .github/scripts/write_entitlements.sh
 
       - name: Checkout code
         uses: actions/checkout@v3
