@@ -36,16 +36,18 @@ jobs:
         shell: bash
 
     steps:
-      - name: Set SYSTEM_IMAGE based on architecture
-        run: |
-          ARCHITECTURE=$(uname -m)
-          echo "# --- Detected architecture: $ARCHITECTURE ---#"
-          if [ "$ARCHITECTURE" == "x86_64" ]; then
-            echo "SYSTEM_IMAGE=google_apis;x86_64" >> $GITHUB_ENV
-          else
-            echo "Unsupported architecture: $ARCHITECTURE"
-            exit 1
-          fi
+      # - name: Set SYSTEM_IMAGE based on architecture
+      #   run: |
+      #     ARCHITECTURE=$(uname -m)
+      #     echo "# --- Detected architecture: $ARCHITECTURE ---#"
+      #     if [ "$ARCHITECTURE" == "x86_64" ]; then
+      #       echo "SYSTEM_IMAGE=google_apis;x86_64" >> $GITHUB_ENV
+      #     elif [ "$ARCHITECTURE" == "arm64" ]; then
+      #       echo "SYSTEM_IMAGE=google_apis;arm64-v8a" >> $GITHUB_ENV
+      #     else
+      #       echo "Unsupported architecture: $ARCHITECTURE"
+      #       exit 1
+      #     fi
 
       - name: Checkout code
         uses: actions/checkout@v3
