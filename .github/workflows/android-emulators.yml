@@ -163,7 +163,7 @@ jobs:
           ARCHITECTURE=$(uname -m)
           ACCEL_PARAMS=""
           if [ "$ARCHITECTURE" == "arm64" ]; then
-            ACCEL_PARAMS="-accel hvf"
+            ACCEL_PARAMS=""
           else
             ACCEL_PARAMS="-accel auto"
           fi
