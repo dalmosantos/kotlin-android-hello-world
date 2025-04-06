@@ -54,8 +54,8 @@ jobs:
 
       - name: Write entitlements and qemu upgrade
         run: |
-          brew update
-          brew upgrade qemu
+          brew update && brew upgrade
+          brew install qemu
           chmod +x .github/scripts/write_entitlements.sh
           .github/scripts/write_entitlements.sh
 
