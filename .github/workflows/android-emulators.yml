@@ -132,40 +132,19 @@ jobs:
           echo "Creating AVD..."
           echo "no" | avdmanager create avd -n test -k "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" --force
 
-          if false; then
-          emulator_config=~/.android/avd/test.avd/config.ini
-          # The following madness is to support empty OR populated config.ini files,
-          # the state of which is dependant on the version of the emulator used (which we don't control),
-          # so let's be defensive to be safe.
-          # Replace existing config (NOTE we're on MacOS so sed works differently!)
-          sed -i .bak 's/hw.lcd.density=.*/hw.lcd.density=420/' "$emulator_config"
-          sed -i .bak 's/hw.lcd.height=.*/hw.lcd.height=1920/' "$emulator_config"
-          sed -i .bak 's/hw.lcd.width=.*/hw.lcd.width=1080/' "$emulator_config"
-          # Or, add new config
-          if ! grep -q "hw.lcd.density" "$emulator_config"; then
-            echo "hw.lcd.density=420" >> "$emulator_config"
+          list_avds=$(emulator -list-avds)
+          if [[ $list_avds != *"test"* ]]; then
+            echo "Error: AVD 'test' not found in list of AVDs: $list_avds"
+            exit 1
           fi
-          if ! grep -q "hw.lcd.height" "$emulator_config"; then
-            echo "hw.lcd.height=1920" >> "$emulator_config"
-          fi
-          if ! grep -q "hw.lcd.width" "$emulator_config"; then
-            echo "hw.lcd.width=1080" >> "$emulator_config"
-          fi
-          echo "Emulator settings ($emulator_config)"
-          cat "$emulator_config"
-          fi
+          echo "AVD 'test' created successfully."
+          echo "List of AVDs:"
+          echo "$list_avds"
+
 
           memory_size=3072
           if [ ${{ matrix.android-version.api }} -eq 24 ]; then
             memory_size=2048
-          fi
-
-          ARCHITECTURE=$(uname -m)
-          ACCEL_PARAMS=""
-          if [ "$ARCHITECTURE" == "arm64" ]; then
-            ACCEL_PARAMS="-accel off"
-          else
-            ACCEL_PARAMS="-accel auto"
           fi
 
           export ANDROID_EMULATOR_USE_SYSTEM_LIBS=1
@@ -178,7 +157,7 @@ jobs:
             -camera-back none \
             -no-boot-anim \
             -no-snapshot \
-            $ACCEL_PARAMS \
+            -accel off \
             -gpu swiftshader_indirect \
             -memory $memory_size \
             -cores 2 \
