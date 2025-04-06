@@ -52,8 +52,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Write entitlements
+      - name: Write entitlements and qemu upgrade
         run: |
+          brew update
+          brew upgrade qemu
           chmod +x .github/scripts/write_entitlements.sh
           .github/scripts/write_entitlements.sh
 
