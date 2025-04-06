@@ -52,13 +52,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Write entitlements and qemu upgrade
-        run: |
-          brew update && brew upgrade
-          brew install qemu
-          chmod +x .github/scripts/write_entitlements.sh
-          .github/scripts/write_entitlements.sh
-
       - name: Validate Gradle wrapper
         uses: gradle/wrapper-validation-action@v1
 
@@ -119,6 +112,13 @@ jobs:
             "platforms;android-${{ matrix.android-version.api }}" \
             "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" \
             "emulator"
+
+      - name: Write entitlements and qemu install
+        run: |
+          brew update && brew install qemu
+          chmod +x .github/scripts/write_entitlements.sh
+          .github/scripts/write_entitlements.sh
+    
 
       - name: Build the project
         run: |
