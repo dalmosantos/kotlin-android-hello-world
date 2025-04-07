@@ -30,7 +30,7 @@ jobs:
         ]
       fail-fast: false
 
-    name: android-emulator-test {device:${{ matrix.android-version.pixel }},version:${{ matrix.android-version.name }}}
+    name: android-emulator-test device=pixel_${{ matrix.android-version.pixel }}, version=${{ matrix.android-version.name }}
 
     defaults:
       run:
@@ -151,8 +151,22 @@ jobs:
         timeout-minutes: 15
         run: |
           set -euo pipefail
+      
+          # Check for a free ADB port before starting emulator
+          start_port=5037
+          port=$start_port
+          while lsof -i :$port; do
+            echo "Port $port is occupied, checking port $((port+2))..."
+            port=$((port+2))
+          done
+          echo "Using port $port for ADB."
+          export ADB_SERVER_PORT=$port
+      
+          # Restart adb server to use the selected port
+          adb kill-server
+          adb start-server
+      
           export ANDROID_EMULATOR_USE_SYSTEM_LIBS=1
-
           echo "Starting emulator..."
           $ANDROID_HOME/emulator/emulator \
             -avd test \
@@ -163,18 +177,6 @@ jobs:
             -no-boot-anim \
             -no-window \
             -memory $MEMORY_SIZE &
-
-  
-          # Adjust ADB_SERVER_PORT: start at 5037 and skip two port numbers until a free port is found
-          start_port=5037
-          port=$start_port
-          while lsof -i :$port; do
-            echo "Port $port is occupied, checking port $((port+2))..."
-            port=$((port+2))
-          done
-          echo "Using port $port for ADB."
-          export ADB_SERVER_PORT=$port 
-
           
       - name: Wait for emulator boot completion
         timeout-minutes: 10
