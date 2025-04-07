@@ -24,13 +24,13 @@ jobs:
           # { api: 29, name: "10" },
           # { api: 30, name: "11" },
           # { api: 31, name: "12" },
-          { api: 33, name: "13", pixel: "5a" },
-          { api: 34, name: "14", pixel: "6a" },
-          { api: 35, name: "15", pixel: "7a" }
+          { api: 33, name: "13", pixel: "6a" },
+          { api: 34, name: "14", pixel: "7a" },
+          { api: 35, name: "15", pixel: "8" }
         ]
       fail-fast: false
 
-    name: android-emulator-test device=pixel_${{ matrix.android-version.pixel }}, version=${{ matrix.android-version.name }}
+    name: android-emulator-test device{pixel_${{ matrix.android-version.pixel }}, version=${{ matrix.android-version.name }}}
 
     defaults:
       run:
@@ -164,7 +164,7 @@ jobs:
       
           # Restart adb server to use the selected port
           adb kill-server
-          adb start-server
+          # adb start-server
       
           export ANDROID_EMULATOR_USE_SYSTEM_LIBS=1
           echo "Starting emulator..."
@@ -176,7 +176,9 @@ jobs:
             -no-audio \
             -no-boot-anim \
             -no-window \
-            -memory $MEMORY_SIZE &
+            -skin 1440x3120 \
+            -memory $MEMORY_SIZE \
+            -qemu &
           
       - name: Wait for emulator boot completion
         timeout-minutes: 10
