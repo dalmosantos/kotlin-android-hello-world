@@ -131,8 +131,8 @@ jobs:
         run: |
           set -euo pipefail
           echo "Creating AVD..."
-          echo "no" | avdmanager create avd -n test --device "pixel_6_pro"
- -k "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" --force
+          echo "no" | avdmanager create avd -n test --device "pixel_6_pro" \
+            -k "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" --force
 
           list_avds=$(emulator -list-avds)
           if [[ $list_avds != *"test"* ]]; then
