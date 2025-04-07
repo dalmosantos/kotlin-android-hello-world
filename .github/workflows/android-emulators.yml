@@ -112,7 +112,8 @@ jobs:
             "platform-tools" \
             "platforms;android-${{ matrix.android-version.api }}" \
             "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" \
-            "emulator"
+            "emulator" \
+            "extras;intel;Hardware_Accelerated_Execution_Manager"
 
       # - name: Write entitlements and qemu install
       #   run: |
@@ -139,7 +140,7 @@ jobs:
             echo "Error: No AVDs found. Please ensure at least one AVD is configured."
             exit 1
           fi
-            echo "AVD 'test' created successfully.""
+            echo "Available AVDs:" $list_avds
 
           memory_size=3072
           if [ ${{ matrix.android-version.api }} -eq 24 ]; then
@@ -156,6 +157,7 @@ jobs:
             -accel auto \
             -no-audio \
             -no-boot-anim \
+            -no-window \
             -memory $memory_size \
             -cores 2 &           
           EMULATOR_PID=$!
