@@ -4,7 +4,7 @@ on: [push, pull_request]
 
 jobs:
   android-emulator-test:
-    runs-on: macos-15
+    runs-on: macos-13
     timeout-minutes: 60
 
     env:
@@ -116,9 +116,9 @@ jobs:
 
       - name: Write entitlements and qemu install
         run: |
-          brew update && brew install qemu
-          chmod +x .github/scripts/write_entitlements.sh
-          .github/scripts/write_entitlements.sh
+          brew upgrade && brew install qemu
+          # chmod +x .github/scripts/write_entitlements.sh
+          # .github/scripts/write_entitlements.sh
     
 
       - name: Build the project
