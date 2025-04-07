@@ -24,13 +24,13 @@ jobs:
           # { api: 29, name: "10" },
           # { api: 30, name: "11" },
           # { api: 31, name: "12" },
-          { api: 33, name: "13" },
-          { api: 34, name: "14" },
-          { api: 35, name: "15" }
+          { api: 33, name: "13", pixel: "5a" },
+          { api: 34, name: "14", pixel: "6a" },
+          { api: 35, name: "15", pixel: "7a" }
         ]
       fail-fast: false
 
-    name: android-emulator-test {version:${{ matrix.android-version.name }},api:${{ matrix.android-version.api }}}
+    name: android-emulator-test {device:${{ matrix.android-version.pixel }},version:${{ matrix.android-version.name }}}
 
     defaults:
       run:
@@ -132,23 +132,20 @@ jobs:
           set -euo pipefail
           echo "Creating AVD..."
           echo "no" | avdmanager create avd -n test \
+            -d "pixel_${{ matrix.android-version.pixel }}" \
             -k "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" --force
 
-          list_avds=$(emulator -list-avds)
-          if [[ -z "$list_avds" ]]; then
-            echo "Error: No AVDs found. Please ensure at least one AVD is configured."
-            exit 1
-          fi
-          echo "Available AVDs:" $list_avds
+          echo "Available AVDs: $(emulator -list-avds)"
 
           # Define memory size based on API level
-          if [ ${{ matrix.android-version.api }} -eq 24 ]; then
-            echo "AVD configured with memory size: 2048MB"
-            echo "MEMORY_SIZE=2048" >> $GITHUB_ENV
+          if [ "${{ matrix.android-version.api }}" -eq 24 ]; then
+            MEMORY_SIZE=2048
           else
-            echo "AVD configured with memory size: 3072MB"
-            echo "MEMORY_SIZE=3072" >> $GITHUB_ENV
+            MEMORY_SIZE=3072
           fi
+
+          echo "AVD configured with memory size: ${MEMORY_SIZE}MB"
+          echo "MEMORY_SIZE=${MEMORY_SIZE}" >> $GITHUB_ENV
 
       - name: Start Emulator and Setup ADB
         timeout-minutes: 15
@@ -165,8 +162,8 @@ jobs:
             -no-audio \
             -no-boot-anim \
             -no-window \
-            -memory $MEMORY_SIZE \
-            -verbose &
+            -memory $MEMORY_SIZE &
+
   
           # Adjust ADB_SERVER_PORT: start at 5037 and skip two port numbers until a free port is found
           start_port=5037
@@ -176,11 +173,7 @@ jobs:
             port=$((port+2))
           done
           echo "Using port $port for ADB."
-          export ADB_SERVER_PORT=$port   
-  
-          # Registra o PID do emulador em variável de ambiente, se necessário para steps seguintes
-          EMULATOR_PID=$!
-          echo "Emulator PID: $EMULATOR_PID"
+          export ADB_SERVER_PORT=$port 
 
           
       - name: Wait for emulator boot completion
