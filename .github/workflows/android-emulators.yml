@@ -18,14 +18,15 @@ jobs:
     strategy:
       matrix:
         android-version: [
-          { api: 24, name: "7" },
-          { api: 26, name: "8" },
+          # { api: 24, name: "7" },
+          # { api: 26, name: "8" },
           # { api: 28, name: "9" },
           # { api: 29, name: "10" },
           # { api: 30, name: "11" },
           # { api: 31, name: "12" },
           { api: 33, name: "13" },
-          { api: 34, name: "14" }
+          { api: 34, name: "14" },
+          { api: 35, name: "15" }
         ]
       fail-fast: false
 
@@ -43,7 +44,7 @@ jobs:
           if [ "$ARCHITECTURE" == "x86_64" ]; then
             echo "SYSTEM_IMAGE=google_apis;x86_64" >> $GITHUB_ENV
           elif [ "$ARCHITECTURE" == "arm64" ]; then
-            echo "SYSTEM_IMAGE=google_apis;arm64-v8a" >> $GITHUB_ENV
+            echo "SYSTEM_IMAGE=google_apis_playstore;arm64-v8a" >> $GITHUB_ENV
           else
             echo "Unsupported architecture: $ARCHITECTURE"
             exit 1
@@ -151,18 +152,10 @@ jobs:
           echo "Starting emulator..."
           $ANDROID_HOME/emulator/emulator \
             -avd test \
-            -no-window \
-            -no-audio \
-            -camera-front none \
-            -camera-back none \
-            -no-boot-anim \
-            -no-snapshot \
-            -accel off \
             -gpu swiftshader_indirect \
+            -skin 1440x3120 \
             -memory $memory_size \
-            -cores 2 \
-            -qemu &
-            
+            -cores 2 &           
           EMULATOR_PID=$!
           sleep 5
           if ! ps -p $EMULATOR_PID > /dev/null; then
