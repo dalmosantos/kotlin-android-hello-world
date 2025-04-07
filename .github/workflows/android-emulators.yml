@@ -60,7 +60,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           java-version: 17
-          distribution: 'zulu'
+          distribution: 'temurim'
 
       - name: Setup Gradle Cache
         uses: actions/cache@v3
@@ -114,35 +114,32 @@ jobs:
             "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" \
             "emulator"
 
-      - name: Write entitlements and qemu install
-        run: |
-          brew upgrade && brew install qemu
-          # chmod +x .github/scripts/write_entitlements.sh
-          # .github/scripts/write_entitlements.sh
+      # - name: Write entitlements and qemu install
+      #   run: |
+      #     brew upgrade && brew install qemu
+      #     # chmod +x .github/scripts/write_entitlements.sh
+      #     # .github/scripts/write_entitlements.sh
     
 
       - name: Build the project
         run: |
           unset ANDROID_SDK_ROOT
-          ./gradlew build --no-daemon
+          ./gradlew build --no-daemon -Pandroid.buildToolsVersion=${{ env.BUILD_TOOLS_VERSION }}
 
       - name: Create and start emulator
         timeout-minutes: 15
         run: |
           set -euo pipefail
           echo "Creating AVD..."
-          echo "no" | avdmanager create avd -n test --device "pixel_6_pro" \
+          echo "no" | avdmanager create avd -n test \
             -k "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" --force
 
           list_avds=$(emulator -list-avds)
-          if [[ $list_avds != *"test"* ]]; then
-            echo "Error: AVD 'test' not found in list of AVDs: $list_avds"
+          if [[ -z "$list_avds" ]]; then
+            echo "Error: No AVDs found. Please ensure at least one AVD is configured."
             exit 1
           fi
-          echo "AVD 'test' created successfully."
-          echo "List of AVDs:"
-          echo "$list_avds"
-
+            echo "AVD 'test' created successfully.""
 
           memory_size=3072
           if [ ${{ matrix.android-version.api }} -eq 24 ]; then
@@ -150,13 +147,15 @@ jobs:
           fi
 
           export ANDROID_EMULATOR_USE_SYSTEM_LIBS=1
-          export ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL=90
+
           echo "Starting emulator..."
           $ANDROID_HOME/emulator/emulator \
             -avd test \
             -no-snapshot \
             -gpu swiftshader_indirect \
-            -skin 1440x3120 \
+            -accel auto \
+            -no-audio \
+            -no-boot-anim \
             -memory $memory_size \
             -cores 2 &           
           EMULATOR_PID=$!
