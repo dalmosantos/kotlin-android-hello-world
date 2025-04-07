@@ -126,8 +126,8 @@ jobs:
           unset ANDROID_SDK_ROOT
           ./gradlew build --no-daemon -Pandroid.buildToolsVersion=${{ env.BUILD_TOOLS_VERSION }}
 
-      - name: Create and start emulator
-        timeout-minutes: 15
+      - name: Create AVD
+        timeout-minutes: 5
         run: |
           set -euo pipefail
           echo "Creating AVD..."
@@ -139,13 +139,21 @@ jobs:
             echo "Error: No AVDs found. Please ensure at least one AVD is configured."
             exit 1
           fi
-            echo "Available AVDs:" $list_avds
+          echo "Available AVDs:" $list_avds
 
-          memory_size=3072
+          # Define memory size based on API level
           if [ ${{ matrix.android-version.api }} -eq 24 ]; then
-            memory_size=2048
+            echo "AVD configured with memory size: 2048MB"
+            echo "MEMORY_SIZE=2048" >> $GITHUB_ENV
+          else
+            echo "AVD configured with memory size: 3072MB"
+            echo "MEMORY_SIZE=3072" >> $GITHUB_ENV
           fi
 
+      - name: Start Emulator and Setup ADB
+        timeout-minutes: 15
+        run: |
+          set -euo pipefail
           export ANDROID_EMULATOR_USE_SYSTEM_LIBS=1
 
           echo "Starting emulator..."
@@ -157,15 +165,28 @@ jobs:
             -no-audio \
             -no-boot-anim \
             -no-window \
-            -memory $memory_size \
-            -cores 2 &           
+            -memory $MEMORY_SIZE \
+            -verbose \
+            -cores 2 &
+  
+          # Adjust ADB_SERVER_PORT: start at 5037 and skip two port numbers until a free port is found
+          start_port=5037
+          port=$start_port
+          while lsof -i :$port; do
+            echo "Port $port is occupied, checking port $((port+2))..."
+            port=$((port+2))
+          done
+          echo "Using port $port for ADB."
+          export ADB_SERVER_PORT=$port
+
+          adb start-server
+          adb devices
+          adb wait-for-device      
+  
+          # Registra o PID do emulador em variável de ambiente, se necessário para steps seguintes
           EMULATOR_PID=$!
-          sleep 5
-          if ! ps -p $EMULATOR_PID > /dev/null; then
-            echo "Error: Emulator failed to start (PID: $EMULATOR_PID)"
-            exit 1
-          fi
-          echo "Emulator started with PID: $EMULATOR_PID"
+          echo "Emulator PID: $EMULATOR_PID"
+
           
       - name: Wait for emulator boot completion
         timeout-minutes: 10
