@@ -112,8 +112,7 @@ jobs:
             "platform-tools" \
             "platforms;android-${{ matrix.android-version.api }}" \
             "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" \
-            "emulator" \
-            "extras;intel;Hardware_Accelerated_Execution_Manager"
+            "emulator"
 
       # - name: Write entitlements and qemu install
       #   run: |
@@ -171,21 +170,33 @@ jobs:
       - name: Wait for emulator boot completion
         timeout-minutes: 10
         run: |
-          MAX_ATTEMPTS=10
-          SLEEP_INTERVAL=15
-          for ((attempt=1; attempt <= MAX_ATTEMPTS; attempt++)); do
-              if [ "$(adb shell getprop sys.boot_completed 2>/dev/null || echo 0)" == "1" ]; then
-                  echo "Emulator booted successfully!"
-                  break
-              fi
-              echo "Waiting for emulator... Attempt $attempt of $MAX_ATTEMPTS"
-              sleep $SLEEP_INTERVAL
-          done
-          if [ "$(adb shell getprop sys.boot_completed 2>/dev/null || echo 0)" != "1" ]; then
-              echo "Emulator failed to boot within timeout."
-              exit 1
-          fi
-          adb shell input keyevent 82
+            # Configuration
+            MAX_ATTEMPTS=10
+            SLEEP_INTERVAL=15
+  
+            # Function to check emulator boot status
+            is_emulator_booted() {
+                adb shell getprop sys.boot_completed 2>/dev/null || echo 0
+            }
+  
+            # Wait for emulator to boot
+            for ((attempt=1; attempt <= MAX_ATTEMPTS; attempt++)); do
+                if [ "$(is_emulator_booted)" == "1" ]; then
+                    echo "Emulator booted successfully!"
+                    break
+                fi
+                echo "Waiting for emulator... Attempt $attempt of $MAX_ATTEMPTS"
+                sleep $SLEEP_INTERVAL
+            done
+  
+            # Check final boot status
+            if [ "$(is_emulator_booted)" != "1" ]; then
+                echo "Emulator failed to boot within timeout."
+                exit 1
+            fi
+  
+            # Unlock the emulator screen
+            adb shell input keyevent 82
 
       - name: Upload APK to emulator
         run: |
