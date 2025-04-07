@@ -166,8 +166,7 @@ jobs:
             -no-boot-anim \
             -no-window \
             -memory $MEMORY_SIZE \
-            -verbose \
-            -cores 2 &
+            -verbose &
   
           # Adjust ADB_SERVER_PORT: start at 5037 and skip two port numbers until a free port is found
           start_port=5037
@@ -177,11 +176,7 @@ jobs:
             port=$((port+2))
           done
           echo "Using port $port for ADB."
-          export ADB_SERVER_PORT=$port
-
-          adb start-server
-          adb devices
-          adb wait-for-device      
+          export ADB_SERVER_PORT=$port   
   
           # Registra o PID do emulador em variável de ambiente, se necessário para steps seguintes
           EMULATOR_PID=$!
@@ -192,7 +187,7 @@ jobs:
         timeout-minutes: 10
         run: |
             # Configuration
-            MAX_ATTEMPTS=10
+            MAX_ATTEMPTS=20
             SLEEP_INTERVAL=15
   
             # Function to check emulator boot status
@@ -218,6 +213,9 @@ jobs:
   
             # Unlock the emulator screen
             adb shell input keyevent 82
+
+            adb devices
+
 
       - name: Upload APK to emulator
         run: |
