@@ -149,6 +149,7 @@ jobs:
           fi
 
           export ANDROID_EMULATOR_USE_SYSTEM_LIBS=1
+          export ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL=90
           echo "Starting emulator..."
           $ANDROID_HOME/emulator/emulator \
             -avd test \
