@@ -18,12 +18,6 @@ jobs:
     strategy:
       matrix:
         android-version: [
-          # { api: 24, name: "7" },
-          # { api: 26, name: "8" },
-          # { api: 28, name: "9" },
-          # { api: 29, name: "10" },
-          # { api: 30, name: "11" },
-          # { api: 31, name: "12" },
           { api: 33, name: "13" },
           { api: 34, name: "14" },
           { api: 35, name: "15" }
@@ -100,7 +94,7 @@ jobs:
           fi
           echo "Latest detected build-tools version: $latest_version"
           echo "BUILD_TOOLS_VERSION=$latest_version" >> $GITHUB_ENV
-  
+
       - name: Accept licenses and install SDK components
         timeout-minutes: 15
         run: |
@@ -119,7 +113,6 @@ jobs:
           brew update && brew install qemu
           chmod +x .github/scripts/write_entitlements.sh
           .github/scripts/write_entitlements.sh
-    
 
       - name: Build the project
         run: |
@@ -142,7 +135,6 @@ jobs:
           echo "List of AVDs:"
           echo "$list_avds"
 
-
           memory_size=3072
           if [ ${{ matrix.android-version.api }} -eq 24 ]; then
             memory_size=2048
@@ -161,11 +153,23 @@ jobs:
           EMULATOR_PID=$!
           sleep 5
           if ! ps -p $EMULATOR_PID > /dev/null; then
-            echo "Error: Emulator failed to start (PID: $EMULATOR_PID)"
-            exit 1
+            echo "Error: Emulator failed to start (PID: $EMULATOR_PID). Trying to start with software acceleration..."
+            $ANDROID_HOME/emulator/emulator \
+              -avd test \
+              -no-snapshot \
+              -gpu swiftshader_indirect \
+              -skin 1440x3120 \
+              -memory $memory_size \
+              -cores 2 &           
+            EMULATOR_PID=$!
+            sleep 5
+            if ! ps -p $EMULATOR_PID > /dev/null; then
+              echo "Error: Emulator failed to start with software acceleration (PID: $EMULATOR_PID)"
+              exit 1
+            fi
           fi
           echo "Emulator started with PID: $EMULATOR_PID"
-          
+
       - name: Wait for emulator boot completion
         timeout-minutes: 10
         run: |
