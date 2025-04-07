@@ -60,7 +60,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           java-version: 17
-          distribution: 'temurin'
+          distribution: 'zulu'
 
       - name: Setup Gradle Cache
         uses: actions/cache@v3
@@ -152,7 +152,8 @@ jobs:
           echo "Starting emulator..."
           $ANDROID_HOME/emulator/emulator \
             -avd test \
-            -gpu swiftshader_indirect \
+            -no-snapshot \
+            -gpu on \
             -skin 1440x3120 \
             -memory $memory_size \
             -cores 2 &           
