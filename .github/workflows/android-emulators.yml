@@ -131,6 +131,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "Creating AVD..."
+          mkdir -p $HOME/.android/avd
           echo "no" | avdmanager create avd -n test \
             -d "pixel_${{ matrix.android-version.pixel }}" \
             -k "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" --force
@@ -152,19 +153,20 @@ jobs:
         run: |
           set -euo pipefail
       
-          # Check for a free ADB port before starting emulator
-          start_port=5037
-          port=$start_port
-          while lsof -i :$port; do
-            echo "Port $port is occupied, checking port $((port+2))..."
-            port=$((port+2))
-          done
-          echo "Using port $port for ADB."
-          export ADB_SERVER_PORT=$port
+          # # Check for a free ADB port before starting emulator
+          # start_port=5037
+          # port=$start_port
+          # while lsof -i :$port; do
+          #   echo "Port $port is occupied, checking port $((port+2))..."
+          #   port=$((port+2))
+          # done
+          # echo "Using port $port for ADB."
+          # export ADB_SERVER_PORT=$port
       
           # Restart adb server to use the selected port
           adb kill-server
-          # adb start-server
+          sleep 5
+          adb start-server
       
           export ANDROID_EMULATOR_USE_SYSTEM_LIBS=1
           echo "Starting emulator..."
