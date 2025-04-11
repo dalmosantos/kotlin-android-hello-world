@@ -18,19 +18,19 @@ jobs:
     strategy:
       matrix:
         android-version: [
-          # { api: 24, name: "7" },
-          # { api: 26, name: "8" },
-          # { api: 28, name: "9" },
-          # { api: 29, name: "10" },
-          # { api: 30, name: "11" },
-          # { api: 31, name: "12" },
-          { api: 33, name: "13", pixel: "6a" },
-          { api: 34, name: "14", pixel: "7a" },
+          { api: 24, name: "7.0", pixel: "pixel" },
+          { api: 26, name: "8.0", pixel: "2" },
+          { api: 28, name: "9", pixel: "3" },
+          { api: 29, name: "10", pixel: "4a" },
+          { api: 30, name: "11", pixel: "5" },
+          { api: 31, name: "12", pixel: "6" },
+          { api: 33, name: "13", pixel: "7" },
+          { api: 34, name: "14", pixel: "8" },
           { api: 35, name: "15", pixel: "8" }
         ]
       fail-fast: false
 
-    name: android-emulator-test device{pixel_${{ matrix.android-version.pixel }}, version=${{ matrix.android-version.name }}}
+    name: android-emulator-test device:pixel_${{ matrix.android-version.pixel }}, version:${{ matrix.android-version.name }}}
 
     defaults:
       run:
@@ -149,7 +149,7 @@ jobs:
           echo "MEMORY_SIZE=${MEMORY_SIZE}" >> $GITHUB_ENV
 
       - name: Start Emulator and Setup ADB
-        timeout-minutes: 15
+        timeout-minutes: 10
         run: |
           set -euo pipefail
       
@@ -178,11 +178,14 @@ jobs:
             -no-audio \
             -no-boot-anim \
             -no-window \
-            -memory $MEMORY_SIZE &
-            # -qemu &
+            -memory $MEMORY_SIZE \
+            -qemu &
 
-          echo "Checking boot status: $(adb shell getprop sys.boot_completed)"
-
+          for i in {1..15}; do
+            echo -n "."
+            sleep 1
+          done
+        
       - name: Wait for emulator boot completion
         timeout-minutes: 10
         run: |
@@ -215,6 +218,7 @@ jobs:
             adb shell input keyevent 82
 
             adb devices
+
 
 
       - name: Upload APK to emulator
