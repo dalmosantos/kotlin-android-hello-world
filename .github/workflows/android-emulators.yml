@@ -178,16 +178,17 @@ jobs:
             -no-audio \
             -no-boot-anim \
             -no-window \
-            -skin 1440x3120 \
-            -memory $MEMORY_SIZE \
-            -qemu &
-          
+            -memory $MEMORY_SIZE &
+            # -qemu &
+
+          echo "Checking boot status: $(adb shell getprop sys.boot_completed)"
+
       - name: Wait for emulator boot completion
         timeout-minutes: 10
         run: |
             # Configuration
             MAX_ATTEMPTS=20
-            SLEEP_INTERVAL=15
+            SLEEP_INTERVAL=30
   
             # Function to check emulator boot status
             is_emulator_booted() {
