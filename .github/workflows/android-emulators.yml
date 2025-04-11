@@ -18,7 +18,7 @@ jobs:
     strategy:
       matrix:
         android-version: [
-          { api: 24, name: "7.0", pixel: "pixel" },
+          { api: 24, name: "7.0", pixel: "xl" },
           { api: 26, name: "8.0", pixel: "2" },
           { api: 28, name: "9", pixel: "3" },
           { api: 29, name: "10", pixel: "4a" },
@@ -40,10 +40,16 @@ jobs:
       - name: Set SYSTEM_IMAGE based on architecture
         run: |
           ARCHITECTURE=$(uname -m)
+          API_VERSION=${{ matrix.android-version.api }}
           echo "# --- Detected architecture: $ARCHITECTURE ---#"
-          if [ "$ARCHITECTURE" == "x86_64" ]; then
-            echo "SYSTEM_IMAGE=google_apis;x86_64" >> $GITHUB_ENV
-          elif [ "$ARCHITECTURE" == "arm64" ]; then
+          echo "# --- Android API version: $API_VERSION ---#"
+          if [ "$ARCHITECTURE" = "x86_64" ]; then
+            if [ "$API_VERSION" -lt 30 ]; then
+              echo "SYSTEM_IMAGE=google_apis;x86_64" >> $GITHUB_ENV
+            else
+              echo "SYSTEM_IMAGE=google_apis_playstore;x86_64" >> $GITHUB_ENV
+            fi
+          elif [ "$ARCHITECTURE" = "aarch64" ] || [ "$ARCHITECTURE" = "arm64" ]; then
             echo "SYSTEM_IMAGE=google_apis_playstore;arm64-v8a" >> $GITHUB_ENV
           else
             echo "Unsupported architecture: $ARCHITECTURE"
@@ -139,10 +145,10 @@ jobs:
           echo "Available AVDs: $(emulator -list-avds)"
 
           # Define memory size based on API level
-          if [ "${{ matrix.android-version.api }}" -eq 24 ]; then
-            MEMORY_SIZE=2048
-          else
+          if [ "${{ matrix.android-version.api }}" -le 26 ]; then
             MEMORY_SIZE=3072
+          else
+            MEMORY_SIZE=4096
           fi
 
           echo "AVD configured with memory size: ${MEMORY_SIZE}MB"
@@ -165,7 +171,7 @@ jobs:
       
           # Restart adb server to use the selected port
           adb kill-server
-          sleep 5
+          sleep 2
           adb start-server
       
           export ANDROID_EMULATOR_USE_SYSTEM_LIBS=1
@@ -180,11 +186,6 @@ jobs:
             -no-window \
             -memory $MEMORY_SIZE \
             -qemu &
-
-          for i in {1..15}; do
-            echo -n "."
-            sleep 1
-          done
         
       - name: Wait for emulator boot completion
         timeout-minutes: 10
