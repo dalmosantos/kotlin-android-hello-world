@@ -26,10 +26,12 @@ jobs:
 
     env:
       ANDROID_HOME: ${{ github.workspace }}/android-sdk
+      ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
       ARTIFACTS_BASE_PATH: artifacts/${{ matrix.android-version.api }}
       TZ: America/Sao_Paulo
       LANG: en_US.UTF-8
       LC_ALL: en_US.UTF-8
+
 
     defaults:
       run:
@@ -118,7 +120,7 @@ jobs:
           adb start-server
           $ANDROID_HOME/emulator/emulator -avd test \
             -no-snapshot -no-audio -no-boot-anim -no-window \
-            -gpu swiftshader_indirect -accel auto \
+            -gpu swiftshader_indirect -accel auto -cores 2 \
             -memory $MEMORY_SIZE -qemu &
 
       - name: Wait for emulator to boot
