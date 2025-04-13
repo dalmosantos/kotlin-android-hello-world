@@ -6,6 +6,7 @@ import androidx.test.espresso.assertion.ViewAssertions.matches
 import androidx.test.espresso.matcher.ViewMatchers.*
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.hamcrest.CoreMatchers.allOf
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -40,10 +41,12 @@ class MainActivityTest {
     @Test
     fun buttonShouldBeVisible_andClickable() {
         onView(withId(R.id.btnGreet))
-            .check(matches(allOf(
-                isDisplayed(),
-                isClickable()
-            )))
+            .check(matches(
+                allOf(
+                    isDisplayed(),
+                    isClickable()
+                )
+            ))
     }
 
     @Test
