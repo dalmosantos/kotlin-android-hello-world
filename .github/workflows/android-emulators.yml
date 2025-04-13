@@ -95,11 +95,13 @@ jobs:
           printf "y\ny\ny\ny\ny\ny\ny\ny\n" | sdkmanager --licenses
           sdkmanager --update
           sdkmanager --install \
+            "tools" \
             "build-tools;${{ env.BUILD_TOOLS_VERSION }}" \
             "platform-tools" \
             "platforms;android-${{ matrix.android-version.api }}" \
             "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" \
-            "emulator"
+            "extras;google;google_play_services" \
+            "emulator" 
 
       - name: Build project
         run: |
@@ -120,39 +122,47 @@ jobs:
           adb start-server
           $ANDROID_HOME/emulator/emulator -avd test \
             -no-snapshot -no-audio -no-boot-anim -no-window \
-            -gpu swiftshader_indirect -accel on -cores 2 \
+            -gpu swiftshader_indirect -accel auto -startup-delay 0 \
             -memory $MEMORY_SIZE -qemu &
 
       - name: Wait for emulator to boot
         run: |
-            MAX_ATTEMPTS=20
-            SLEEP_SECONDS=30
-            BOOT_COMPLETE_PROP="sys.boot_completed"
-            
-            wait_for_emulator() {
-              for ((i=1; i<=MAX_ATTEMPTS; i++)); do
-                if adb shell getprop "$BOOT_COMPLETE_PROP" | grep -q 1; then
-                  echo "✓ Emulator successfully booted after $((i*SLEEP_SECONDS)) seconds"
-                  return 0
-                fi
-                echo "⏳ Waiting for emulator to boot... (Attempt $i/$MAX_ATTEMPTS)"
-                sleep $SLEEP_SECONDS
-              done
-              echo "❌ Emulator failed to boot after $((MAX_ATTEMPTS*SLEEP_SECONDS)) seconds"
-              return 1
-            }
-
-            if wait_for_emulator; then
-              # Unlock device screen
-              adb shell input keyevent 82
-              
-              # Get and display Android version
-              android_version=$(adb shell getprop ro.build.version.release)
-              echo "📱 Android Version: ${android_version}"
-            else
-              exit 1
-            fi
-
+          MAX_ATTEMPTS=20
+          SLEEP_SECONDS=30
+          BOOT_COMPLETE_PROP="sys.boot_completed"
+                
+          wait_for_emulator() {
+            for ((i=1; i<=MAX_ATTEMPTS; i++)); do
+              if adb shell getprop "$BOOT_COMPLETE_PROP" | grep -q 1; then
+                echo "✓ Emulator successfully booted after $((i*SLEEP_SECONDS)) seconds"
+                return 0
+              fi
+              echo "⏳ Waiting for emulator to boot... (Attempt $i/$MAX_ATTEMPTS)"
+              echo "📋 Last 10 lines of logcat:"
+              adb logcat -d -t 10
+              sleep $SLEEP_SECONDS
+            done
+            echo "❌ Emulator failed to boot after $((MAX_ATTEMPTS*SLEEP_SECONDS)) seconds"
+            echo "📋 Final logcat output:"
+            adb logcat -d -t 10
+            return 1
+          }
+    
+          if wait_for_emulator; then
+          # Unlock device screen
+            adb shell input keyevent 82
+                  
+          # Get and display Android version
+            android_version=$(adb shell getprop ro.build.version.release)
+            echo "📱 Android Version: ${android_version}"
+                  
+          # Show final successful boot logcat
+            echo "📋 Final boot logcat:"
+            adb logcat -d -t 10
+          else
+            exit 1
+          fi
+    
       - name: Install APK
         run: adb install app/build/outputs/apk/debug/app-debug.apk
 
