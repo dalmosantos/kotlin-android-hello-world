@@ -116,14 +116,23 @@ jobs:
 
       - name: Start emulator
         run: |
-          MEMORY_SIZE=$([[ "${{ matrix.android-version.api }}" -le 26 ]] && echo 3072 || echo 4096)
-          echo "MEMORY_SIZE=$MEMORY_SIZE" >> $GITHUB_ENV
-
-          adb start-server
-          $ANDROID_HOME/emulator/emulator -avd test \
-            -no-snapshot -no-audio -no-boot-anim -no-window \
-            -gpu swiftshader_indirect -accel auto -startup-delay 0 \
-            -memory $MEMORY_SIZE -qemu &
+              MEMORY_SIZE=$([[ "${{ matrix.android-version.api }}" -le 26 ]] && echo 3072 || echo 4096)
+              echo "MEMORY_SIZE=$MEMORY_SIZE" >> $GITHUB_ENV
+          
+              # Habilita aceleração de hardware
+              $ANDROID_HOME/emulator/emulator -accel-check || true
+              
+              adb start-server
+              $ANDROID_HOME/emulator/emulator -avd test \
+                -no-snapshot -no-audio -no-boot-anim -no-window \
+                -gpu host \
+                -accel on \
+                -feature HVF \
+                -cpu-delay 0 \
+                -memory $MEMORY_SIZE \
+                -partition-size 4096 \
+                -cache-size 1024 \
+                -qemu -smp 2 &
 
       - name: Wait for emulator to boot
         run: |
