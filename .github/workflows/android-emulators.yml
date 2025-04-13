@@ -127,41 +127,54 @@ jobs:
 
       - name: Wait for emulator to boot
         run: |
-          MAX_ATTEMPTS=20
-          SLEEP_SECONDS=30
-          BOOT_COMPLETE_PROP="sys.boot_completed"
-                
-          wait_for_emulator() {
-            for ((i=1; i<=MAX_ATTEMPTS; i++)); do
-              if adb shell getprop "$BOOT_COMPLETE_PROP" | grep -q 1; then
-                echo "✓ Emulator successfully booted after $((i*SLEEP_SECONDS)) seconds"
-                return 0
-              fi
-              echo "⏳ Waiting for emulator to boot... (Attempt $i/$MAX_ATTEMPTS)"
-              echo "📋 Last 10 lines of logcat:"
-              adb logcat -d -t 10
-              sleep $SLEEP_SECONDS
-            done
-            echo "❌ Emulator failed to boot after $((MAX_ATTEMPTS*SLEEP_SECONDS)) seconds"
-            echo "📋 Final logcat output:"
-            adb logcat -d -t 10
-            return 1
-          }
+              MAX_ATTEMPTS=20
+              SLEEP_SECONDS=30
+              BOOT_COMPLETE_PROP="sys.boot_completed"
+              LOGCAT_FILE="${{ env.ARTIFACTS_BASE_PATH }}/boot-logcat.txt"
     
-          if wait_for_emulator; then
-          # Unlock device screen
-            adb shell input keyevent 82
-                  
-          # Get and display Android version
-            android_version=$(adb shell getprop ro.build.version.release)
-            echo "📱 Android Version: ${android_version}"
-                  
-          # Show final successful boot logcat
-            echo "📋 Final boot logcat:"
-            adb logcat -d -t 10
-          else
-            exit 1
-          fi
+              # Garante que o diretório de artefatos exista
+              mkdir -p "$(dirname "$LOGCAT_FILE")"
+    
+              # Inicia logcat em background
+              adb logcat -v time > "$LOGCAT_FILE" &
+              LOGCAT_PID=$!
+    
+              wait_for_emulator() {
+                for ((i=1; i<=MAX_ATTEMPTS; i++)); do
+                  if adb get-state 2>/dev/null | grep -q "device"; then
+                    if adb shell getprop "$BOOT_COMPLETE_PROP" 2>/dev/null | grep -q 1; then
+                      echo "✓ Emulator successfully booted after $((i*SLEEP_SECONDS)) seconds"
+                      return 0
+                    fi
+                  fi
+                  echo "⏳ Waiting for emulator to boot... (Attempt $i/$MAX_ATTEMPTS)"
+                  sleep $SLEEP_SECONDS
+                done
+                echo "❌ Emulator failed to boot after $((MAX_ATTEMPTS*SLEEP_SECONDS)) seconds"
+                return 1
+              }
+    
+              if wait_for_emulator; then
+                # Desbloqueia a tela
+                adb shell input keyevent 82
+    
+                # Mostra a versão do Android
+                android_version=$(adb shell getprop ro.build.version.release)
+                echo "📱 Android Version: ${android_version}"
+              else
+                echo "⚠️ Boot log (últimas 50 linhas):"
+                tail -n 50 "$LOGCAT_FILE"
+                kill $LOGCAT_PID || true
+                exit 1
+              fi
+    
+              # Finaliza logcat
+              kill $LOGCAT_PID || true
+    
+              # Mostra trecho final do log
+              echo "📋 Final boot logcat (últimas 30 linhas):"
+              tail -n 30 "$LOGCAT_FILE"
+    
     
       - name: Install APK
         run: adb install app/build/outputs/apk/debug/app-debug.apk
