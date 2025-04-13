@@ -128,7 +128,6 @@ jobs:
                 -gpu host \
                 -accel on \
                 -feature HVF \
-                -cpu-delay 0 \
                 -memory $MEMORY_SIZE \
                 -partition-size 4096 \
                 -cache-size 1024 \
