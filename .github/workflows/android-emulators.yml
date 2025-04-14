@@ -112,80 +112,110 @@ jobs:
         run: |
           echo "no" | avdmanager create avd -n test \
             -d "pixel_${{ matrix.android-version.pixel }}" \
-            -k "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" --force
-            
+            -k "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" \
+            --force
+      
+            - name: Create AVD
+            run: |
+              echo "no" | avdmanager create avd -n test \
+                -d "pixel_${{ matrix.android-version.pixel }}" \
+                -k "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" \
+                --force
+        
       - name: Start emulator
         run: |
-              set -euo pipefail
-              MEMORY_SIZE=$([[ "${{ matrix.android-version.api }}" -le 28 ]] && echo 2048 || echo 3072)
-              echo "MEMORY_SIZE=$MEMORY_SIZE" >> $GITHUB_ENV
-          
-              # Start the emulator with hardware acceleration
-              $ANDROID_HOME/emulator/emulator -accel-check || true
-              
-              adb start-server
-              $ANDROID_HOME/emulator/emulator -avd test \
-                -timezone America/Sao_Paulo \
-                -no-snapshot -no-audio -no-boot-anim -no-window \
-                -netdelay none -netspeed full \
-                -camera-back none -camera-front none \
-                -gpu swiftshader \
-                -accel on -feature Vulkan \
-                -memory $MEMORY_SIZE \
-                -partition-size 4096 \
-                -cache-size 1024 \
-                -qemu -smp 2 &
-
+          set -euo pipefail
+      
+          # Define memory size based on Android version
+          MEMORY_SIZE=$([[ "${{ matrix.android-version.api }}" -le 28 ]] && echo 2048 || echo 3072)
+          echo "MEMORY_SIZE=$MEMORY_SIZE" >> $GITHUB_ENV
+      
+          # Check for hardware acceleration support
+          $ANDROID_HOME/emulator/emulator -accel-check || true
+      
+          adb start-server
+      
+          # Start the emulator with no UI and reduced overhead
+          $ANDROID_HOME/emulator/emulator -avd test \
+            -timezone America/Sao_Paulo \
+            -no-snapshot -no-audio -no-boot-anim -no-window \
+            -netdelay none -netspeed full \
+            -camera-back none -camera-front none \
+            -gpu swiftshader \
+            -accel on -feature Vulkan \
+            -memory $MEMORY_SIZE \
+            -partition-size 4096 \
+            -cache-size 1024 \
+            -qemu -smp 2 &
+        
       - name: Wait for emulator to boot
         run: |
+          set -euo pipefail
+      
           MAX_ATTEMPTS=20
           SLEEP_SECONDS=30
           BOOT_COMPLETE_PROP="sys.boot_completed"
           LOGCAT_FILE="${{ env.ARTIFACTS_BASE_PATH }}/boot-logcat.txt"
-
-          # Ensure the artifacts directory exists
+      
+          # Create directory for log file
           mkdir -p "$(dirname "$LOGCAT_FILE")"
-
-          # Start logcat in the background
+      
+          # Start capturing logcat output
           adb logcat -v time > "$LOGCAT_FILE" &
           LOGCAT_PID=$!
-
+      
           wait_for_emulator() {
             for ((i=1; i<=MAX_ATTEMPTS; i++)); do
               if adb get-state 2>/dev/null | grep -q "device"; then
                 if adb shell getprop "$BOOT_COMPLETE_PROP" 2>/dev/null | grep -q 1; then
-                  echo " Emulator successfully booted after $((i*SLEEP_SECONDS)) seconds"
+                  echo "✅ Emulator booted in $((i * SLEEP_SECONDS)) seconds"
                   return 0
                 fi
               fi
-              echo " Waiting for emulator to boot... (Attempt $i/$MAX_ATTEMPTS)"
+              echo "⏳ Waiting for emulator... (Attempt $i/$MAX_ATTEMPTS)"
               sleep $SLEEP_SECONDS
             done
-            echo " Emulator failed to boot after $((MAX_ATTEMPTS*SLEEP_SECONDS)) seconds"
             return 1
           }
-
+      
           if wait_for_emulator; then
             # Unlock the screen
             adb shell input keyevent 82
-
-            # Show the Android version
+      
+            # Print Android version
             android_version=$(adb shell getprop ro.build.version.release)
-            echo " Android Version: ${android_version}"
+            echo "# ----- 📱 Android Version: $android_version -----"
           else
-            echo " Boot log (last 50 lines):"
+            echo "❌ Emulator failed to boot"
+            echo "🔍 Boot log (last 50 lines):"
             tail -n 50 "$LOGCAT_FILE" | grep -i "error"
             kill $LOGCAT_PID || true
             exit 1
           fi
-
-          # Finish logcat
+      
+          # Stop logcat
           kill $LOGCAT_PID || true
+      
+          # Print final logcat output
+          echo "📄 Final boot logcat (last 30 lines):"
+          tail -n 30 "$LOGCAT_FILE"
+        
+      - name: Configure emulator system settings
+        run: |
+          # Disable window animations
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
 
-          # Show the final boot logcat (last 30 lines)
-          echo " Final boot logcat (last 30 lines):"
-          tail -n 30 "$LOGCAT_FILE"    
+          # Allow access to hidden APIs
+          adb shell settings put global hidden_api_policy 1
 
+          # Unlock screen and focus home
+          adb shell input keyevent 82
+          adb shell input keyevent 66
+          adb shell am start -a android.intent.action.MAIN -c android.intent.category.HOME
+          sleep 5
+            
       - name: Install APK
         run: adb install app/build/outputs/apk/debug/app-debug.apk
 
