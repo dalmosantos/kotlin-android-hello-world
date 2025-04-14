@@ -125,8 +125,8 @@ jobs:
               adb start-server
               $ANDROID_HOME/emulator/emulator -avd test \
                 -no-snapshot -no-audio -no-boot-anim -no-window \
-                -gpu host \
-                -accel swiftshader_indirect \
+                -gpu swiftshader_indirect \
+                -accel auto\
                 -feature HVF \
                 -memory $MEMORY_SIZE \
                 # -partition-size 4096 \
