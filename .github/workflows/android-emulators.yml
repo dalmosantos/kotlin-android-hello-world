@@ -126,11 +126,11 @@ jobs:
               $ANDROID_HOME/emulator/emulator -avd test \
                 -no-snapshot -no-audio -no-boot-anim -no-window \
                 -gpu swiftshader_indirect \
-                -accel auto\
+                -accel on\
                 -feature HVF \
                 -memory $MEMORY_SIZE \
-                # -partition-size 4096 \
-                # -cache-size 1024 \
+                -partition-size 4096 \
+                -cache-size 1024 \
                 -qemu -smp 2 &
 
       - name: Wait for emulator to boot
