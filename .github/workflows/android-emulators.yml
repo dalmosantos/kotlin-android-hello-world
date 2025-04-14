@@ -117,7 +117,7 @@ jobs:
       - name: Start emulator
         run: |
               set -euo pipefail
-              MEMORY_SIZE=$([[ "${{ matrix.android-version.api }}" -le 26 ]] && echo 1024 || echo 4096)
+              MEMORY_SIZE=$([[ "${{ matrix.android-version.api }}" -le 26 ]] && echo 2048 || echo 6144)
               echo "MEMORY_SIZE=$MEMORY_SIZE" >> $GITHUB_ENV
           
               # Start the emulator with hardware acceleration
