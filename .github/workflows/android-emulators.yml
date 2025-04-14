@@ -115,13 +115,13 @@ jobs:
             -k "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" \
             --force
       
-            - name: Create AVD
-            run: |
-              echo "no" | avdmanager create avd -n test \
-                -d "pixel_${{ matrix.android-version.pixel }}" \
-                -k "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" \
-                --force
-        
+      - name: Create AVD
+        run: |
+          echo "no" | avdmanager create avd -n test \
+            -d "pixel_${{ matrix.android-version.pixel }}" \
+            -k "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" \
+            --force
+          
       - name: Start emulator
         run: |
           set -euo pipefail
