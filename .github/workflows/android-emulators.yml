@@ -132,15 +132,15 @@ jobs:
           # Start the emulator with no UI and reduced overhead
           $ANDROID_HOME/emulator/emulator -avd test \
             -timezone America/Sao_Paulo \
-            -no-snapshot -no-audio -no-boot-anim -no-window \
+            -no-snapshot -no-audio -no-boot-anim -no-window -no-jni \
             -netdelay none -netspeed full \
             -camera-back none -camera-front none \
-            -gpu swiftshader \
+            -gpu swiftshader  \
             -accel on -feature Vulkan \
             -memory $MEMORY_SIZE \
             -partition-size 4096 \
             -cache-size 1024 \
-            -qemu -smp 2 &
+            -qemu -smp 4 &
         
       - name: Wait for emulator to boot
         run: |
@@ -204,6 +204,15 @@ jobs:
           # Allow access to hidden APIs
           adb shell settings put global hidden_api_policy 1
 
+          # Force activities to be resizable
+          adb shell settings put global force_resizable_activities 1
+          
+          # Keep screen on while testing
+          adb shell svc power stayon true
+          
+          # Set window focus timeout
+          adb shell settings put global window_animation_scale 0.0
+
             
       - name: Install APK
         run: adb install app/build/outputs/apk/debug/app-debug.apk
@@ -214,8 +223,8 @@ jobs:
           adb shell input keyevent 82
           adb shell input keyevent 66
           adb shell am start -a android.intent.action.MAIN -c android.intent.category.HOME
-          sleep 5
-          ./gradlew connectedAndroidTest --no-daemon --info
+          sleep 8
+          ./gradlew connectedAndroidTest --no-daemon
 
       - name: Take screenshot
         if: always()
