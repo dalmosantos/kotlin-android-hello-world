@@ -116,10 +116,11 @@ jobs:
             
       - name: Start emulator
         run: |
-              MEMORY_SIZE=$([[ "${{ matrix.android-version.api }}" -le 26 ]] && echo 2048 || echo 3072)
+              set -euo pipefail
+              MEMORY_SIZE=$([[ "${{ matrix.android-version.api }}" -le 26 ]] && echo 1024 || echo 2048)
               echo "MEMORY_SIZE=$MEMORY_SIZE" >> $GITHUB_ENV
           
-              # Habilita aceleração de hardware
+              # Start the emulator with hardware acceleration
               $ANDROID_HOME/emulator/emulator -accel-check || true
               
               adb start-server
@@ -127,12 +128,11 @@ jobs:
                 -no-snapshot -no-audio -no-boot-anim -no-window \
                 -netdelay none -netspeed full \
                 -camera-back none -camera-front none \
-                -gpu on --window-focus \
+                -gpu on \
                 -accel on -feature HVF \
                 -memory $MEMORY_SIZE \
                 -partition-size 4096 \
                 -cache-size 1024 \
-                -wipe-data \
                 -qemu -smp 2 &
 
       - name: Wait for emulator to boot
