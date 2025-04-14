@@ -117,7 +117,7 @@ jobs:
       - name: Start emulator
         run: |
               set -euo pipefail
-              MEMORY_SIZE=$([[ "${{ matrix.android-version.api }}" -le 26 ]] && echo 2048 || echo 6144)
+              MEMORY_SIZE=$([[ "${{ matrix.android-version.api }}" -le 26 ]] && echo 2048 || echo 3072)
               echo "MEMORY_SIZE=$MEMORY_SIZE" >> $GITHUB_ENV
           
               # Start the emulator with hardware acceleration
@@ -125,6 +125,7 @@ jobs:
               
               adb start-server
               $ANDROID_HOME/emulator/emulator -avd test \
+                -timezone America/Sao_Paulo \
                 -no-snapshot -no-audio -no-boot-anim -no-window \
                 -netdelay none -netspeed full \
                 -camera-back none -camera-front none \
