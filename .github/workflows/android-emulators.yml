@@ -13,13 +13,13 @@ jobs:
         android-version: [
           { api: 24, name: "7.0", pixel: "xl" },
           { api: 26, name: "8.0", pixel: "2" },
-          { api: 28, name: "9", pixel: "3" },
+          { api: 28, name: "9", pixel: "3a" },
           { api: 29, name: "10", pixel: "4a" },
           { api: 30, name: "11", pixel: "5" },
-          { api: 31, name: "12", pixel: "6" },
-          { api: 33, name: "13", pixel: "7" },
-          { api: 34, name: "14", pixel: "8" },
-          { api: 35, name: "15", pixel: "8" }
+          { api: 31, name: "12", pixel: "6a" },
+          { api: 33, name: "13", pixel: "7a" },
+          { api: 34, name: "14", pixel: "8a" },
+          { api: 35, name: "15", pixel: "8a" }
         ]
 
     name: Android Emulator Test - API ${{ matrix.android-version.api }}
@@ -140,7 +140,7 @@ jobs:
             -memory $MEMORY_SIZE \
             -partition-size 4096 \
             -cache-size 1024 \
-            -qemu -smp 4 &
+            -qemu -smp 2 &
         
       - name: Wait for emulator to boot
         run: |
@@ -193,28 +193,39 @@ jobs:
           # Print final logcat output
           echo "📄 Final boot logcat (last 30 lines):"
           tail -n 30 "$LOGCAT_FILE"
+          sleep 5
         
       - name: Configure emulator system settings
         run: |
-          # Disable window animations
+          echo "🔧 Starting emulator configuration..."
+          
+          echo "📱 Disabling window animations..."
           adb shell settings put global window_animation_scale 0
           adb shell settings put global transition_animation_scale 0
           adb shell settings put global animator_duration_scale 0
-
-          # Allow access to hidden APIs
+          echo "✅ Animations disabled"
+          
+          echo "🔓 Configuring hidden API access..."
           adb shell settings put global hidden_api_policy 1
-
-          # Force activities to be resizable
+          echo "✅ Hidden API access configured"
+          
+          echo "📐 Setting resizable activities..."
           adb shell settings put global force_resizable_activities 1
+          echo "✅ Resizable activities configured"
           
-          # Keep screen on while testing
+          echo "⚡ Configuring power settings..."
           adb shell svc power stayon true
+          echo "✅ Screen set to stay on"
           
-          # Set window focus timeout
+          echo "⏱️ Setting window focus timeout..."
           adb shell settings put global window_animation_scale 0.0
+          echo "✅ Window focus timeout configured"
+          
+          echo "✨ Emulator configuration completed successfully!"
 
             
       - name: Install APK
+        timeout-minutes: 5
         run: adb install app/build/outputs/apk/debug/app-debug.apk
 
       - name: Run instrumentation tests
@@ -223,7 +234,7 @@ jobs:
           adb shell input keyevent 82
           adb shell input keyevent 66
           adb shell am start -a android.intent.action.MAIN -c android.intent.category.HOME
-          sleep 8
+          sleep 10
           ./gradlew connectedAndroidTest --no-daemon
 
       - name: Take screenshot

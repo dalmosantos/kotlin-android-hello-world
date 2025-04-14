@@ -27,7 +27,7 @@ class MainActivityTest {
     @Test
     fun whenButtonClicked_textViewShouldShowHelloAndroid() {
         // Given - Initial state verification
-        Thread.sleep(3000)
+        Thread.sleep(2000)
         onView(withId(R.id.tvGreet))
             .check(matches(withText("")))
 
@@ -42,7 +42,7 @@ class MainActivityTest {
 
     @Test
     fun buttonShouldBeVisible_andClickable() {
-        Thread.sleep(4000)
+        Thread.sleep(2000)
         onView(withId(R.id.btnGreet))
             .check(matches(
                 allOf(
@@ -54,7 +54,7 @@ class MainActivityTest {
 
     @Test
     fun buttonShouldHaveCorrectText() {
-        Thread.sleep(5000)
+        Thread.sleep(2000)
         onView(withId(R.id.btnGreet))
             .check(matches(withText(R.string.press_me)))
     }
