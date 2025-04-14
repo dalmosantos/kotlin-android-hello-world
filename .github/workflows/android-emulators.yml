@@ -115,19 +115,13 @@ jobs:
             -k "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" \
             --force
       
-      - name: Create AVD
-        run: |
-          echo "no" | avdmanager create avd -n test \
-            -d "pixel_${{ matrix.android-version.pixel }}" \
-            -k "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" \
-            --force
-          
+     
       - name: Start emulator
         run: |
           set -euo pipefail
       
           # Define memory size based on Android version
-          MEMORY_SIZE=$([[ "${{ matrix.android-version.api }}" -le 28 ]] && echo 2048 || echo 3072)
+          MEMORY_SIZE=$([[ "${{ matrix.android-version.api }}" -le 26 ]] && echo 2048 || echo 3072)
           echo "MEMORY_SIZE=$MEMORY_SIZE" >> $GITHUB_ENV
       
           # Check for hardware acceleration support
@@ -138,7 +132,7 @@ jobs:
           # Start the emulator with no UI and reduced overhead
           $ANDROID_HOME/emulator/emulator -avd test \
             -timezone America/Sao_Paulo \
-            -no-snapshot -no-audio -no-boot-anim -no-window \
+            -no-snapshot -no-audio -no-boot-anim \
             -netdelay none -netspeed full \
             -camera-back none -camera-front none \
             -gpu swiftshader \
@@ -200,21 +194,21 @@ jobs:
           echo "📄 Final boot logcat (last 30 lines):"
           tail -n 30 "$LOGCAT_FILE"
         
-      - name: Configure emulator system settings
-        run: |
-          # Disable window animations
-          adb shell settings put global window_animation_scale 0
-          adb shell settings put global transition_animation_scale 0
-          adb shell settings put global animator_duration_scale 0
+      # - name: Configure emulator system settings
+      #   run: |
+      #     # Disable window animations
+      #     adb shell settings put global window_animation_scale 0
+      #     adb shell settings put global transition_animation_scale 0
+      #     adb shell settings put global animator_duration_scale 0
 
-          # Allow access to hidden APIs
-          adb shell settings put global hidden_api_policy 1
+      #     # Allow access to hidden APIs
+      #     adb shell settings put global hidden_api_policy 1
 
-          # Unlock screen and focus home
-          adb shell input keyevent 82
-          adb shell input keyevent 66
-          adb shell am start -a android.intent.action.MAIN -c android.intent.category.HOME
-          sleep 5
+      #     # Unlock screen and focus home
+      #     adb shell input keyevent 82
+      #     adb shell input keyevent 66
+      #     adb shell am start -a android.intent.action.MAIN -c android.intent.category.HOME
+      #     sleep 5
             
       - name: Install APK
         run: adb install app/build/outputs/apk/debug/app-debug.apk
