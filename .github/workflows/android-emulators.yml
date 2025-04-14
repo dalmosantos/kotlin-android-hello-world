@@ -135,7 +135,6 @@ jobs:
             -no-snapshot -no-audio -no-boot-anim -no-window \
             -netdelay none -netspeed full \
             -camera-back none -camera-front none \
-            -wm-disable-window-animation \
             -gpu swiftshader \
             -accel on -feature Vulkan \
             -memory $MEMORY_SIZE \
