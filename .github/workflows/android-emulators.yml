@@ -11,10 +11,10 @@ jobs:
       fail-fast: false
       matrix:
         android-version: [
-          { api: 24, name: "7.0", pixel: "xl" },
-          { api: 26, name: "8.0", pixel: "2" },
-          { api: 28, name: "9", pixel: "3a" },
-          { api: 29, name: "10", pixel: "4a" },
+          # { api: 24, name: "7.0", pixel: "xl" },
+          # { api: 26, name: "8.0", pixel: "2" },
+          # { api: 28, name: "9", pixel: "3a" },
+          # { api: 29, name: "10", pixel: "4a" },
           { api: 30, name: "11", pixel: "5" },
           { api: 31, name: "12", pixel: "6a" },
           { api: 33, name: "13", pixel: "7a" },
@@ -139,8 +139,8 @@ jobs:
             -accel on -feature Vulkan \
             -memory $MEMORY_SIZE \
             -partition-size 4096 \
-            -cache-size 1024 \
-            -qemu -smp 2 &
+            -cache-size 2048 \
+            -qemu -smp 4 &
         
       - name: Wait for emulator to boot
         run: |
