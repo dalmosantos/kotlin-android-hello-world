@@ -22,7 +22,8 @@ jobs:
           { api: 35, name: "15", pixel: "8a" }
         ]
 
-    name: Android Emulator Test - API ${{ matrix.android-version.api }}
+    name: Android Emulator Test - Version-${{ matrix.android-version.name }} @Pixel${{ matrix.android-version.pixel }}_API_${{ matrix.android-version.api }}
+    
 
     env:
       ANDROID_HOME: ${{ github.workspace }}/android-sdk
@@ -140,7 +141,7 @@ jobs:
             -memory $MEMORY_SIZE \
             -partition-size 4096 \
             -cache-size 2048 \
-            -qemu -smp 4 &
+            -qemu -smp 6 &
         
       - name: Wait for emulator to boot
         run: |
