@@ -122,8 +122,9 @@ jobs:
           set -euo pipefail
       
           # Define memory size based on Android version
-          MEMORY_SIZE=$([[ "${{ matrix.android-version.api }}" -le 26 ]] && echo 2048 || echo 3072)
-          echo "MEMORY_SIZE=$MEMORY_SIZE" >> $GITHUB_ENV
+          # MEMORY_SIZE=$([[ "${{ matrix.android-version.api }}" -le 26 ]] && echo 2048 || echo 3072)
+          # echo "MEMORY_SIZE=$MEMORY_SIZE" >> $GITHUB_ENV
+          echo "memory.size=4096" >> ~/.android/advancedFeatures.ini
       
           # Check for hardware acceleration support
           $ANDROID_HOME/emulator/emulator -accel-check || true
@@ -138,7 +139,7 @@ jobs:
             -camera-back none -camera-front none \
             -gpu swiftshader  \
             -accel on -feature Vulkan \
-            -memory $MEMORY_SIZE \
+            # -memory $MEMORY_SIZE \
             -partition-size 4096 \
             -cache-size 2048 \
             -qemu -smp 6 &
@@ -181,7 +182,7 @@ jobs:
             android_version=$(adb shell getprop ro.build.version.release)
             echo "# ----- 📱 Android Version: $android_version -----"
           else
-            echo "❌ Emulator failed to boot"
+            echo "❌ Emulator failed to boot to allocate time"
             echo "🔍 Boot log (last 50 lines):"
             tail -n 50 "$LOGCAT_FILE" | grep -i "error"
             kill $LOGCAT_PID || true
