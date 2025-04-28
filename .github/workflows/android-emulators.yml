@@ -121,7 +121,7 @@ jobs:
         run: |
           set -euo pipefail
       
-          Define memory size based on Android version
+          # Define memory size based on Android version
           MEMORY_SIZE=$([[ "${{ matrix.android-version.api }}" -le 26 ]] && echo 2048 || echo 3072)
           echo "MEMORY_SIZE=$MEMORY_SIZE" >> $GITHUB_ENV
           
