@@ -121,10 +121,10 @@ jobs:
         run: |
           set -euo pipefail
       
-          # Define memory size based on Android version
-          # MEMORY_SIZE=$([[ "${{ matrix.android-version.api }}" -le 26 ]] && echo 2048 || echo 3072)
-          # echo "MEMORY_SIZE=$MEMORY_SIZE" >> $GITHUB_ENV
-          echo "memory.size=4096" >> ~/.android/advancedFeatures.ini
+          Define memory size based on Android version
+          MEMORY_SIZE=$([[ "${{ matrix.android-version.api }}" -le 26 ]] && echo 2048 || echo 3072)
+          echo "MEMORY_SIZE=$MEMORY_SIZE" >> $GITHUB_ENV
+          
       
           # Check for hardware acceleration support
           $ANDROID_HOME/emulator/emulator -accel-check || true
@@ -139,7 +139,7 @@ jobs:
             -camera-back none -camera-front none \
             -gpu swiftshader  \
             -accel on -feature Vulkan \
-            # -memory $MEMORY_SIZE \
+            -memory $MEMORY_SIZE \
             -partition-size 4096 \
             -cache-size 2048 \
             -qemu -smp 6 &
