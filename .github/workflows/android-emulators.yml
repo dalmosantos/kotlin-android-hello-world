@@ -120,24 +120,16 @@ jobs:
       - name: Start emulator
         run: |
           set -euo pipefail
-      
-          # Define memory size based on Android version
           MEMORY_SIZE=$([[ "${{ matrix.android-version.api }}" -le 26 ]] && echo 2048 || echo 3072)
           echo "MEMORY_SIZE=$MEMORY_SIZE" >> $GITHUB_ENV
-          
-      
-          # Check for hardware acceleration support
           $ANDROID_HOME/emulator/emulator -accel-check || true
-      
           adb start-server
-      
-          # Start the emulator with no UI and reduced overhead
           $ANDROID_HOME/emulator/emulator -avd test \
             -timezone America/Sao_Paulo \
             -no-snapshot -no-audio -no-boot-anim -no-window -no-jni \
             -netdelay none -netspeed full \
             -camera-back none -camera-front none \
-            -gpu swiftshader  \
+            -gpu swiftshader \
             -accel on -feature Vulkan \
             -memory $MEMORY_SIZE \
             -partition-size 4096 \
