@@ -185,13 +185,12 @@ jobs:
             -timezone America/Sao_Paulo \
             -memory $MEMORY_SIZE \
             -feature Vulkan \
-            -gpu swiftshader_indirect \
+            -gpu swiftshader \
             -cores 4 \
             -accel on \
             -netdelay none -netspeed full \
             -camera-back none -camera-front none \
-            -no-snapshot -qemu -smp 4 \
-            -logcat *:W > "${{ env.ARTIFACTS_BASE_PATH }}/emulator-log.txt" 2>&1 &
+            -no-snapshot -qemu -smp 4 &
         
       - name: Wait for emulator to boot with intelligent polling
         run: |
