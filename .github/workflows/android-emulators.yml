@@ -5,7 +5,7 @@ on: [push, pull_request]
 jobs:
   android-emulator-test:
     runs-on: macos-13
-    timeout-minutes: 60
+    timeout-minutes: 30
 
     strategy:
       fail-fast: false
@@ -89,7 +89,7 @@ jobs:
           fi
       - name: Accept licenses and install SDK components
         run: |
-          printf "y\ny\ny\ny\ny\ny\ny\ny\n" | sdkmanager --licenses
+          printf "y\ny\ny\ny\ny\ny\ny\ny\n" | sdkmanager --licenses > /dev/null
           sdkmanager --update
           sdkmanager --install \
             "tools" \
@@ -97,7 +97,6 @@ jobs:
             "platform-tools" \
             "platforms;android-${{ matrix.android-version.api }}" \
             "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" \
-            "extras;google;google_play_services" \
             "emulator" 
       - name: Build project
         run: |
@@ -130,32 +129,38 @@ jobs:
             -no-snapshot -no-audio -no-boot-anim -no-window \
             -netdelay none -netspeed full \
             -camera-back none -camera-front none \
-            -gpu host \
+            -gpu swiftshader_indirect \
             -memory $MEMORY_SIZE \
             -partition-size 4096 \
             -cache-size 2048 \
-            -no-accel \
-            -verbose \
-            -qemu -smp 2 &
+            -accel on \
+            -qemu -smp 4 &
         
       - name: Wait for emulator to boot
         run: |
           set -euo pipefail
       
-          MAX_ATTEMPTS=20
-          SLEEP_SECONDS=30
+          MAX_ATTEMPTS=30
+          SLEEP_SECONDS=20
           BOOT_COMPLETE_PROP="sys.boot_completed"
           LOGCAT_FILE="${{ env.ARTIFACTS_BASE_PATH }}/boot-logcat.txt"
       
-          # Create directory for log file
+          # Ensure logcat directory exists
           mkdir -p "$(dirname "$LOGCAT_FILE")"
-      
+          touch "$LOGCAT_FILE"
+
+          # Kill existing logcat processes
+          pkill -f "adb logcat" || true
+
           # Start capturing logcat output
-          adb logcat -v time > "$LOGCAT_FILE" &
+          adb logcat -G 16M
+          adb logcat -v time *:V > "$LOGCAT_FILE" &
           LOGCAT_PID=$!
       
           wait_for_emulator() {
             for ((i=1; i<=MAX_ATTEMPTS; i++)); do
+              echo "ADB State: $(adb get-state)"
+              echo "Boot Property: $(adb shell getprop $BOOT_COMPLETE_PROP)"
               if adb get-state 2>/dev/null | grep -q "device"; then
                 if adb shell getprop "$BOOT_COMPLETE_PROP" 2>/dev/null | grep -q 1; then
                   echo "✅ Emulator booted in $((i * SLEEP_SECONDS)) seconds"
@@ -169,10 +174,7 @@ jobs:
           }
       
           if wait_for_emulator; then
-            # Unlock the screen
             adb shell input keyevent 82
-      
-            # Print Android version
             android_version=$(adb shell getprop ro.build.version.release)
             echo "# ----- 📱 Android Version: $android_version -----"
           else
@@ -183,10 +185,7 @@ jobs:
             exit 1
           fi
       
-          # Stop logcat
           kill $LOGCAT_PID || true
-      
-          # Print final logcat output
           echo "📄 Final boot logcat (last 30 lines):"
           tail -n 30 "$LOGCAT_FILE"
           sleep 5
