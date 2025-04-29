@@ -73,6 +73,7 @@ jobs:
         run: |
           version=$(sdkmanager --list | grep -o 'build-tools;[0-9.]*' | sed 's/build-tools;//' | sort -V | tail -1)
           echo "BUILD_TOOLS_VERSION=$version" >> $GITHUB_ENV
+          
       - name: Set system image based on architecture
         run: |
           arch=$(uname -m)
@@ -87,9 +88,10 @@ jobs:
             echo "Unsupported architecture: $arch"
             exit 1
           fi
+
       - name: Accept licenses and install SDK components
         run: |
-          printf "y\ny\ny\ny\ny\ny\ny\ny\n" | sdkmanager --licenses
+          printf "y\ny\ny\ny\ny\ny\ny\ny\n" | sdkmanager --licenses  > /dev/null 2>&1
           sdkmanager --update
           sdkmanager --install \
             "tools" \
@@ -97,27 +99,58 @@ jobs:
             "platform-tools" \
             "platforms;android-${{ matrix.android-version.api }}" \
             "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" \
-            "extras;google;google_play_services" \
             "emulator" 
+
       - name: Build project
         run: |
           unset ANDROID_SDK_ROOT
           ./gradlew build --no-daemon -Pandroid.buildToolsVersion=${{ env.BUILD_TOOLS_VERSION }}
-      - name: Create AVD
+
+      - name: Create optimized AVD
         run: |
+          # Define memory size based on Android version
+          MEMORY_SIZE=$([[ "${{ matrix.android-version.api }}" -le 26 ]] && echo 2048 || echo 3072)
+          echo "MEMORY_SIZE=$MEMORY_SIZE" >> $GITHUB_ENV
+
           echo "no" | avdmanager create avd -n test \
             -d "pixel_${{ matrix.android-version.pixel }}" \
             -k "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" \
             --force
-      
-     
+          
+          # Apply performance optimizations to AVD config
+          CONFIG_PATH="$HOME/.android/avd/test.avd/config.ini"
+          echo "Optimizing AVD configuration at $CONFIG_PATH"
+          
+          # Hardware acceleration
+          echo "hw.accelerometer=no" >> $CONFIG_PATH
+          echo "hw.audioInput=no" >> $CONFIG_PATH
+          echo "hw.audioOutput=no" >> $CONFIG_PATH
+          echo "hw.battery=no" >> $CONFIG_PATH
+          echo "hw.gps=no" >> $CONFIG_PATH
+          echo "hw.camera.front=no" >> $CONFIG_PATH
+          echo "hw.camera.back=no" >> $CONFIG_PATH
+          echo "hw.lcd.density=240" >> $CONFIG_PATH
+          echo "hw.lcd.width=768" >> $CONFIG_PATH
+          echo "hw.lcd.height=1280" >> $CONFIG_PATH
+          echo "hw.sensor.proximity=no" >> $CONFIG_PATH
+          
+          # RAM optimizations
+          echo "hw.ramSize=$MEMORY_SIZE" >> $CONFIG_PATH
+          
+          # Disk optimizations
+          echo "disk.dataPartition.size=2048M" >> $CONFIG_PATH
+          echo "disk.cachePartition.size=512M" >> $CONFIG_PATH
+          
+          # Graphics optimizations
+          echo "hw.gpu.enabled=yes" >> $CONFIG_PATH
+          echo "hw.gpu.mode=swiftshader" >> $CONFIG_PATH
+          
+          cat $CONFIG_PATH
+          echo "✅ AVD creation and optimization completed"
+          
       - name: Start emulator
         run: |
           set -euo pipefail
-      
-          # Define memory size based on Android version
-          MEMORY_SIZE=$([[ "${{ matrix.android-version.api }}" -le 26 ]] && echo 2048 || echo 3072)
-          echo "MEMORY_SIZE=$MEMORY_SIZE" >> $GITHUB_ENV
       
           # Check for hardware acceleration support
           $ANDROID_HOME/emulator/emulator -accel-check || true
@@ -129,6 +162,7 @@ jobs:
             -timezone America/Sao_Paulo \
             -no-snapshot -no-audio -no-boot-anim -no-window -no-jni \
             -netdelay none -netspeed full \
+            -wipe-data -no-cache \
             -camera-back none -camera-front none \
             -gpu swiftshader  \
             -accel on -feature Vulkan \
