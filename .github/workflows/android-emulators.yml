@@ -141,7 +141,7 @@ jobs:
           hw.lcd.width=1080
           hw.keyboard=yes
           disk.dataPartition.size=16G
-          hw.ramSize=4096
+          hw.ramSize=3072
           hw.gpu.enabled=yes
           hw.gpu.mode=swiftshader_indirect
           hw.cpu.ncore=4
@@ -154,9 +154,9 @@ jobs:
           hw.sensors.magnetic_field=no
           hw.sensors.orientation=no
           hw.sensors.temperature=no
-          cache.size=128M
+          cache.size=512M
           disk.cachePartition=yes
-          disk.cachePartition.size=1G
+          disk.cachePartition.size=2G
           hw.mainKeys=no
           hw.dPad=no
           EOF
@@ -169,7 +169,7 @@ jobs:
           set -euo pipefail
           
           # Determine memory size based on API level
-          MEMORY_SIZE=$([[ "${{ matrix.android-version.api }}" -le 26 ]] && echo 2048 || echo 4096)
+          MEMORY_SIZE=$([[ "${{ matrix.android-version.api }}" -le 26 ]] && echo 2048 || echo 3072)
           
           echo "Starting emulator for API ${{ matrix.android-version.api }} with $MEMORY_SIZE MB RAM..."
           
