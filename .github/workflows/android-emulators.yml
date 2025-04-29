@@ -134,27 +134,33 @@ jobs:
           EOF
 
       - name: Create boot snapshot
+        timeout-minutes: 10
         if: ${{ !steps.cache-deps.outputs.cache-hit }}
         run: |
           echo "Creating optimized boot snapshot..."
           
           # Start emulator
           $ANDROID_HOME/emulator/emulator -avd test \
-            -no-snapshot-load \
-            -no-snapshot-save \
-            -wipe-data \
-            -gpu swiftshader_indirect \
+            -no-window -no-audio -no-boot-anim -no-snapshot-save -no-cache \
+            -timezone America/Sao_Paulo \
             -memory $MEMORY_SIZE \
-            -no-audio \
-            -no-boot-anim \
-            -no-window \
-            -qemu -smp 4 \
-            -accel on &
+            -gpu swiftshader_indirect \
+            -skip-adb-auth \
+            -no-snapshot \
+            -accel on \
+            -qt-hide-window \
+            -grpc-use-token \
+            -netdelay none -netspeed full \
+            -camera-back none -camera-front none \
+            -verbose \
+            -feature -Vulkan \
+            -qemu -smp 4 &
           
           EMULATOR_PID=$!
           
           # Wait for emulator to boot
           echo "Waiting for emulator to boot..."
+
           adb wait-for-device
           
           # Wait for system boot to complete
