@@ -68,11 +68,13 @@ jobs:
           unzip sdk.zip -d $ANDROID_HOME/cmdline-tools
           mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
           echo "$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator" >> $GITHUB_PATH
+
       - name: Detect latest build-tools version
         id: buildtools
         run: |
           version=$(sdkmanager --list | grep -o 'build-tools;[0-9.]*' | sed 's/build-tools;//' | sort -V | tail -1)
           echo "BUILD_TOOLS_VERSION=$version" >> $GITHUB_ENV
+
       - name: Set system image based on architecture
         run: |
           arch=$(uname -m)
@@ -87,21 +89,24 @@ jobs:
             echo "Unsupported architecture: $arch"
             exit 1
           fi
+
       - name: Accept licenses and install SDK components
         run: |
           printf "y\ny\ny\ny\ny\ny\ny\ny\n" | sdkmanager --licenses > /dev/null
-          sdkmanager --update
-          sdkmanager --install \
+          sdkmanager --update --channel=0
+          sdkmanager --install --channel=0 \
             "tools" \
             "build-tools;${{ env.BUILD_TOOLS_VERSION }}" \
             "platform-tools" \
             "platforms;android-${{ matrix.android-version.api }}" \
             "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" \
             "emulator" 
+
       - name: Build project
         run: |
           unset ANDROID_SDK_ROOT
           ./gradlew build --no-daemon -Pandroid.buildToolsVersion=${{ env.BUILD_TOOLS_VERSION }}
+
       - name: Create AVD
         run: |
           echo "no" | avdmanager create avd -n test \
@@ -109,7 +114,6 @@ jobs:
             -k "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" \
             --force
       
-     
       - name: Start emulator
         run: |
           set -euo pipefail
@@ -118,7 +122,7 @@ jobs:
           MEMORY_SIZE=$([[ "${{ matrix.android-version.api }}" -le 26 ]] && echo 2048 || echo 3072)
           echo "MEMORY_SIZE=$MEMORY_SIZE" >> $GITHUB_ENV
 
-          # Check for hardware acceleration support (informativo)
+          # Check for hardware acceleration support
           $ANDROID_HOME/emulator/emulator -accel-check || true
 
           adb start-server
@@ -126,7 +130,7 @@ jobs:
           # Start the emulator with macOS-friendly flags
           $ANDROID_HOME/emulator/emulator -avd test \
             -timezone America/Sao_Paulo \
-            -no-snapshot -no-audio -no-boot-anim -no-window \
+            -no-snapshot -no-audio -no-boot-anim \
             -netdelay none -netspeed full \
             -camera-back none -camera-front none \
             -gpu swiftshader_indirect \
@@ -215,7 +219,8 @@ jobs:
           echo "⏱️ Setting window focus timeout..."
           adb shell settings put global window_animation_scale 0.0
           echo "✅ Window focus timeout configured"
-          
+          sleep 10
+
           echo "✨ Emulator configuration completed successfully!"
             
       - name: Install APK
@@ -228,13 +233,15 @@ jobs:
           adb shell input keyevent 82
           adb shell input keyevent 66
           adb shell am start -a android.intent.action.MAIN -c android.intent.category.HOME
-          sleep 10
-          ./gradlew connectedAndroidTest --no-daemon
+          sleep 15
+          ./gradlew connectedAndroidTest --no-daemon -Pandroid.buildToolsVersion=${{ env.BUILD_TOOLS_VERSION }}
+
       - name: Take screenshot
         if: always()
         run: |
           mkdir -p ${{ env.ARTIFACTS_BASE_PATH }}/screenshots
           adb exec-out screencap -p > ${{ env.ARTIFACTS_BASE_PATH }}/screenshots/emulator-${{ matrix.android-version.api }}.png
+          
       - name: Upload screenshot
         if: always()
         uses: actions/upload-artifact@v4
