@@ -101,7 +101,7 @@ jobs:
           fi
           
           # Accept licenses silently and install only required SDK components
-          yes | sdkmanager --licenses > /dev/null 2>&1
+          printf "y\ny\ny\ny\ny\ny\ny\ny\n" | sdkmanager --licenses > /dev/null
           sdkmanager --install \
             "platform-tools" \
             "build-tools;$version" \
