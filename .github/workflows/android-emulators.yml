@@ -58,19 +58,55 @@ jobs:
             ${{ runner.os }}-android-${{ matrix.android-version.api }}-
             ${{ runner.os }}-android-
 
-      - name: Install Android SDK
+      - name: Install Android SDK (if not cached)
         run: |
-          mkdir -p $ANDROID_HOME/cmdline-tools/latest
-          curl -o sdk.zip https://dl.google.com/android/repository/commandlinetools-mac-9477386_latest.zip
-          unzip sdk.zip -d $ANDROID_HOME/cmdline-tools/latest
+          if [ ! -d "$ANDROID_HOME/cmdline-tools/latest" ]; then
+            mkdir -p $ANDROID_HOME/cmdline-tools
+            url=$(curl -s https://developer.android.com/studio#command-tools | grep -oE 'https://dl.google.com/android/repository/commandlinetools-mac-[0-9]+_latest.zip' | head -1)
+            curl -o sdk.zip "$url"
+            unzip -q sdk.zip -d $ANDROID_HOME/cmdline-tools
+            mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
+          fi
           echo "$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator" >> $GITHUB_PATH
 
-      - name: Install SDK components
+      - name: Detect latest build-tools version
+        id: buildtools
+        run: |
+          version=$(sdkmanager --list | grep -o 'build-tools;[0-9.]*' | sed 's/build-tools;//' | sort -V | tail -1)
+          echo "BUILD_TOOLS_VERSION=$version" >> $GITHUB_ENV
+  
+      - name: Set system image based on architecture
+        run: |
+          arch=$(uname -m)
+          api=${{ matrix.android-version.api }}
+          echo "Using architecture: $arch with API level: $api"
+          
+          # Based on logs, we're enforcing x86_64 for macOS 13.7
+          if [[ "$arch" == "x86_64" && "$api" -lt 30 ]]; then
+            echo "SYSTEM_IMAGE=google_apis;x86_64" >> $GITHUB_ENV
+          elif [[ "$arch" == "x86_64" ]]; then
+            # Use google_apis instead of google_apis_playstore for faster boot
+            echo "SYSTEM_IMAGE=google_apis;x86_64" >> $GITHUB_ENV
+          elif [[ "$arch" == "arm64" || "$arch" == "aarch64" ]]; then
+            echo "SYSTEM_IMAGE=google_apis;arm64-v8a" >> $GITHUB_ENV
+          else
+            echo "Unsupported architecture: $arch"
+            exit 1
+          fi
+
+      - name: Accept licenses and install SDK components
         run: |
           printf "y\ny\ny\ny\ny\ny\ny\ny\n" | sdkmanager --licenses > /dev/null
-          sdkmanager --install "platform-tools" "emulator"
-          sdkmanager --install "platforms;android-${{ matrix.android-version.api }}"
-          sdkmanager --install "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}"
+          
+          # Only install necessary components
+          echo "Installing Android SDK components for API ${{ matrix.android-version.api }}..."
+          sdkmanager --install \
+            "platform-tools" \
+            "emulator" \
+            "build-tools;${{ env.BUILD_TOOLS_VERSION }}" \
+            "platforms;android-${{ matrix.android-version.api }}" \
+            "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" \
+            --channel=0 > /dev/null
 
       - name: Configure AVD
         run: |
