@@ -5,7 +5,7 @@ on: [push, pull_request]
 jobs:
   android-emulator-test:
     runs-on: macos-13
-    timeout-minutes: 25  # Reduzido devido às otimizações
+    timeout-minutes: 25
 
     strategy:
       fail-fast: false
@@ -137,6 +137,8 @@ jobs:
         if: ${{ !steps.cache-deps.outputs.cache-hit }}
         run: |
           echo "Creating optimized boot snapshot..."
+          
+          # Start emulator
           $ANDROID_HOME/emulator/emulator -avd test \
             -no-snapshot-load \
             -no-snapshot-save \
@@ -147,20 +149,51 @@ jobs:
             -no-boot-anim \
             -no-window \
             -qemu -smp 4 \
-            -accel on \
-            -quit-after-boot 180 &
-
-          # Wait for snapshot creation
-          for i in {1..36}; do
-            if [[ -f ~/.android/avd/test.avd/snapshots/default_boot/ram.img ]]; then
-              echo "Snapshot created successfully"
-              pkill -f emulator || true
-              exit 0
+            -accel on &
+          
+          EMULATOR_PID=$!
+          
+          # Wait for emulator to boot
+          echo "Waiting for emulator to boot..."
+          adb wait-for-device
+          
+          # Wait for system boot to complete
+          for i in {1..30}; do
+            if adb shell getprop sys.boot_completed | grep -q 1 && \
+               adb shell pm list packages 2>/dev/null | grep -q 'package:android'; then
+              echo "Emulator booted successfully after $((i*10)) seconds"
+              break
             fi
-            sleep 5
+            if [ $i -eq 30 ]; then
+              echo "Timeout waiting for emulator to boot"
+              adb emu kill || true
+              exit 1
+            fi
+            sleep 10
           done
-          echo "Failed to create snapshot"
-          exit 1
+          
+          # Wait additional time for system stabilization
+          echo "Waiting for system stabilization..."
+          sleep 30
+          
+          # Create snapshot
+          echo "Creating snapshot..."
+          adb emu avd snapshot save default_boot
+          
+          # Verify snapshot was created
+          if [[ -f ~/.android/avd/test.avd/snapshots/default_boot/ram.img ]]; then
+            echo "Snapshot created successfully"
+          else
+            echo "Failed to create snapshot"
+            adb emu kill || true
+            exit 1
+          fi
+          
+          # Kill the emulator
+          adb emu kill || kill $EMULATOR_PID || true
+          
+          # Wait for emulator to fully shut down
+          sleep 10
 
       - name: Start emulator from snapshot
         run: |
