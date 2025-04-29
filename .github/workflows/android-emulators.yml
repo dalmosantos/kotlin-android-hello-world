@@ -32,6 +32,9 @@ jobs:
       TZ: America/Sao_Paulo
       LANG: en_US.UTF-8
       LC_ALL: en_US.UTF-8
+      # Optimize emulator performance
+      ANDROID_EMULATOR_WAIT_TIME_BEFORE_KILL: 600
+      QT_QPA_PLATFORM: offscreen
 
 
     defaults:
@@ -58,16 +61,21 @@ jobs:
             ~/.gradle/caches
             ~/.gradle/wrapper
             ~/.android
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: ${{ runner.os }}-gradle-
+            ${{ env.ANDROID_HOME }}
+          key: ${{ runner.os }}-sdk-gradle-${{ matrix.android-version.api }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-sdk-gradle-${{ matrix.android-version.api }}-
+            ${{ runner.os }}-sdk-gradle-
 
-      - name: Install Android SDK
+      - name: Install Android SDK (if not cached)
         run: |
-          mkdir -p $ANDROID_HOME/cmdline-tools
-          url=$(curl -s https://developer.android.com/studio#command-tools | grep -oE 'https://dl.google.com/android/repository/commandlinetools-mac-[0-9]+_latest.zip' | head -1)
-          curl -o sdk.zip "$url"
-          unzip sdk.zip -d $ANDROID_HOME/cmdline-tools
-          mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
+          if [ ! -d "$ANDROID_HOME/cmdline-tools/latest" ]; then
+            mkdir -p $ANDROID_HOME/cmdline-tools
+            url=$(curl -s https://developer.android.com/studio#command-tools | grep -oE 'https://dl.google.com/android/repository/commandlinetools-mac-[0-9]+_latest.zip' | head -1)
+            curl -o sdk.zip "$url"
+            unzip -q sdk.zip -d $ANDROID_HOME/cmdline-tools
+            mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
+          fi
           echo "$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator" >> $GITHUB_PATH
 
       - name: Detect latest build-tools version
@@ -80,6 +88,9 @@ jobs:
         run: |
           arch=$(uname -m)
           api=${{ matrix.android-version.api }}
+          echo "Using architecture: $arch with API level: $api"
+          
+          # For x86_64 macOS runners, use x86_64 images
           if [[ "$arch" == "x86_64" && "$api" -lt 30 ]]; then
             echo "SYSTEM_IMAGE=google_apis;x86_64" >> $GITHUB_ENV
           elif [[ "$arch" == "x86_64" ]]; then
@@ -93,55 +104,101 @@ jobs:
 
       - name: Accept licenses and install SDK components
         run: |
-          printf "y\ny\ny\ny\ny\ny\ny\ny\n" | sdkmanager --licenses
-          sdkmanager --update
+          printf "y\ny\ny\ny\ny\ny\ny\ny\n" | sdkmanager --licenses > /dev/null
+          
+          # Only install necessary components
+          echo "Installing Android SDK components for API ${{ matrix.android-version.api }}..."
           sdkmanager --install \
-            "tools" \
-            "build-tools;${{ env.BUILD_TOOLS_VERSION }}" \
             "platform-tools" \
+            "emulator" \
+            "build-tools;${{ env.BUILD_TOOLS_VERSION }}" \
             "platforms;android-${{ matrix.android-version.api }}" \
             "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" \
-            "extras;google;google_play_services" \
-            "emulator" 
+            --channel=0 > /dev/null
 
-      - name: Build project
+      - name: Build project in parallel with AVD creation
         run: |
+          # Start build in background
           unset ANDROID_SDK_ROOT
-          ./gradlew build --no-daemon -Pandroid.buildToolsVersion=${{ env.BUILD_TOOLS_VERSION }}
-
-      - name: Create AVD
-        run: |
+          ./gradlew build --no-daemon -Pandroid.buildToolsVersion=${{ env.BUILD_TOOLS_VERSION }} &
+          BUILD_PID=$!
+          
+          # Create AVD while build is running
+          echo "Creating AVD for API ${{ matrix.android-version.api }}..."
           echo "no" | avdmanager create avd -n test \
             -d "pixel_${{ matrix.android-version.pixel }}" \
             -k "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" \
             --force
-      
-     
-      - name: Start emulator
+          
+          # Create optimized AVD config file
+          AVD_DIR="$HOME/.android/avd/test.avd"
+          CONFIG_FILE="$AVD_DIR/config.ini"
+          
+          echo "Optimizing AVD configuration..."
+          cat >> "$CONFIG_FILE" << EOF
+          hw.lcd.density=420
+          hw.lcd.height=1920
+          hw.lcd.width=1080
+          hw.keyboard=yes
+          disk.dataPartition.size=16G
+          hw.ramSize=4096
+          hw.gpu.enabled=yes
+          hw.gpu.mode=swiftshader_indirect
+          hw.cpu.ncore=4
+          vm.heapSize=512
+          hw.audioInput=no
+          hw.audioOutput=no
+          hw.accelerometer=no
+          hw.gyroscope=no
+          hw.sensors.proximity=no
+          hw.sensors.magnetic_field=no
+          hw.sensors.orientation=no
+          hw.sensors.temperature=no
+          cache.size=128M
+          disk.cachePartition=yes
+          disk.cachePartition.size=1G
+          hw.mainKeys=no
+          hw.dPad=no
+          EOF
+          
+          # Wait for build to complete
+          wait $BUILD_PID
+
+      - name: Start emulator with optimized parameters
         run: |
           set -euo pipefail
-          MEMORY_SIZE=$([[ "${{ matrix.android-version.api }}" -le 26 ]] && echo 2048 || echo 3072)
-          echo "MEMORY_SIZE=$MEMORY_SIZE" >> $GITHUB_ENV
-          $ANDROID_HOME/emulator/emulator -accel-check || true
+          
+          # Determine memory size based on API level
+          MEMORY_SIZE=$([[ "${{ matrix.android-version.api }}" -le 26 ]] && echo 2048 || echo 4096)
+          
+          echo "Starting emulator for API ${{ matrix.android-version.api }} with $MEMORY_SIZE MB RAM..."
+          
+          # Start adb server early
           adb start-server
+          
+          # Create directory for emulator log file
+          mkdir -p "$(dirname "${{ env.ARTIFACTS_BASE_PATH }}/emulator-log.txt")"
+          
+          # Start emulator with optimized parameters
           $ANDROID_HOME/emulator/emulator -avd test \
+            -no-window -no-audio -no-boot-anim -no-snapshot-save \
             -timezone America/Sao_Paulo \
-            -no-snapshot -no-audio -no-boot-anim -no-window -no-jni \
+            -memory $MEMORY_SIZE \
+            -feature Vulkan \
+            -gpu swiftshader_indirect \
+            -cores 4 \
+            -accel on \
             -netdelay none -netspeed full \
             -camera-back none -camera-front none \
-            -gpu swiftshader \
-            -accel on -feature Vulkan \
-            -memory $MEMORY_SIZE \
-            -partition-size 4096 \
-            -cache-size 2048 \
-            -qemu -smp 6 &
+            -no-snapshot -qemu -smp 4 \
+            -logcat *:W > "${{ env.ARTIFACTS_BASE_PATH }}/emulator-log.txt" 2>&1 &
         
-      - name: Wait for emulator to boot
+      - name: Wait for emulator to boot with intelligent polling
         run: |
           set -euo pipefail
       
-          MAX_ATTEMPTS=20
-          SLEEP_SECONDS=30
+          MAX_ATTEMPTS=30
+          INITIAL_SLEEP=10
           BOOT_COMPLETE_PROP="sys.boot_completed"
           LOGCAT_FILE="${{ env.ARTIFACTS_BASE_PATH }}/boot-logcat.txt"
       
@@ -151,17 +208,44 @@ jobs:
           # Start capturing logcat output
           adb logcat -v time > "$LOGCAT_FILE" &
           LOGCAT_PID=$!
+          
+          # Initial sleep to allow emulator to start booting
+          echo "⏳ Giving emulator initial $INITIAL_SLEEP seconds to start..."
+          sleep $INITIAL_SLEEP
       
           wait_for_emulator() {
             for ((i=1; i<=MAX_ATTEMPTS; i++)); do
+              # Check if emulator process is still running
+              if ! pgrep -f "emulator -avd test" > /dev/null; then
+                echo "❌ Emulator process crashed!"
+                return 1
+              fi
+              
+              # Check if device is connected
               if adb get-state 2>/dev/null | grep -q "device"; then
-                if adb shell getprop "$BOOT_COMPLETE_PROP" 2>/dev/null | grep -q 1; then
-                  echo "✅ Emulator booted in $((i * SLEEP_SECONDS)) seconds"
+                BOOT_STATUS=$(adb shell getprop "$BOOT_COMPLETE_PROP" 2>/dev/null || echo "0")
+                if [[ "$BOOT_STATUS" == "1" ]]; then
+                  echo "✅ Emulator booted successfully after $i attempts"
+                  
+                  # Wait a bit more for system services to stabilize
+                  echo "⏳ Allowing system to stabilize for 5 seconds..."
+                  sleep 5
                   return 0
                 fi
               fi
-              echo "⏳ Waiting for emulator... (Attempt $i/$MAX_ATTEMPTS)"
-              sleep $SLEEP_SECONDS
+              
+              # Adaptive polling - increase sleep time gradually
+              SLEEP_TIME=$((5 + i))
+              echo "⏳ Waiting for emulator... (Attempt $i/$MAX_ATTEMPTS, sleeping $SLEEP_TIME seconds)"
+              
+              # Print emulator status for debugging
+              adb devices -l
+              
+              # Check if boot is progressing
+              BOOT_ANIM=$(adb shell getprop init.svc.bootanim 2>/dev/null || echo "unknown")
+              echo "📱 Boot animation status: $BOOT_ANIM"
+              
+              sleep $SLEEP_TIME
             done
             return 1
           }
@@ -169,66 +253,77 @@ jobs:
           if wait_for_emulator; then
             # Unlock the screen
             adb shell input keyevent 82
+            adb shell input keyevent 66
       
             # Print Android version
             android_version=$(adb shell getprop ro.build.version.release)
             echo "# ----- 📱 Android Version: $android_version -----"
+            
+            # Check for common system services
+            echo "Checking system services..."
+            adb shell dumpsys window | grep -q "mFocusedApp" && echo "✅ Window service running" || echo "❌ Window service not running"
+            adb shell dumpsys activity | grep -q "mResumedActivity" && echo "✅ Activity service running" || echo "❌ Activity service not running"
           else
-            echo "❌ Emulator failed to boot to allocate time"
-            echo "🔍 Boot log (last 50 lines):"
-            tail -n 50 "$LOGCAT_FILE" | grep -i "error"
+            echo "❌ Emulator failed to boot within allocated time"
+            echo "🔍 Boot log (last 100 lines with errors):"
+            grep -i "error\|fail\|fatal\|exception" "$LOGCAT_FILE" | tail -n 100
+            
+            # Check for hardware acceleration status
+            echo "🖥️ Checking hardware acceleration:"
+            $ANDROID_HOME/emulator/emulator -accel-check || true
+            
+            # Dump emulator log
+            echo "📜 Emulator log:"
+            tail -n 100 "${{ env.ARTIFACTS_BASE_PATH }}/emulator-log.txt"
+            
             kill $LOGCAT_PID || true
             exit 1
           fi
       
           # Stop logcat
           kill $LOGCAT_PID || true
-      
-          # Print final logcat output
-          echo "📄 Final boot logcat (last 30 lines):"
-          tail -n 30 "$LOGCAT_FILE"
-          sleep 5
         
       - name: Configure emulator system settings
         run: |
           echo "🔧 Starting emulator configuration..."
           
-          echo "📱 Disabling window animations..."
-          adb shell settings put global window_animation_scale 0
-          adb shell settings put global transition_animation_scale 0
-          adb shell settings put global animator_duration_scale 0
-          echo "✅ Animations disabled"
+          # Disable animations in parallel
+          (adb shell settings put global window_animation_scale 0 &)
+          (adb shell settings put global transition_animation_scale 0 &)
+          (adb shell settings put global animator_duration_scale 0 &)
           
-          echo "🔓 Configuring hidden API access..."
-          adb shell settings put global hidden_api_policy 1
-          echo "✅ Hidden API access configured"
+          # Configure power and UI settings in parallel
+          (adb shell settings put global hidden_api_policy 1 &)
+          (adb shell settings put global force_resizable_activities 1 &)
+          (adb shell svc power stayon true &)
           
-          echo "📐 Setting resizable activities..."
-          adb shell settings put global force_resizable_activities 1
-          echo "✅ Resizable activities configured"
+          # Wait for all background commands to complete
+          wait
+          echo "✅ All system configurations applied"
           
-          echo "⚡ Configuring power settings..."
-          adb shell svc power stayon true
-          echo "✅ Screen set to stay on"
+          # Switch to fastest graphics mode
+          adb shell setprop debug.hwui.renderer skiagl
           
-          echo "⏱️ Setting window focus timeout..."
-          adb shell settings put global window_animation_scale 0.0
-          echo "✅ Window focus timeout configured"
-          
+          # Go to home screen
+          adb shell input keyevent KEYCODE_HOME
           echo "✨ Emulator configuration completed successfully!"
 
             
       - name: Install APK
         timeout-minutes: 5
-        run: adb install app/build/outputs/apk/debug/app-debug.apk
+        run: |
+          echo "📲 Installing debug APK..."
+          adb install -g -t app/build/outputs/apk/debug/app-debug.apk
+          echo "✅ APK installed successfully"
 
       - name: Run instrumentation tests
         run: | 
           # Unlock screen and focus home
           adb shell input keyevent 82
-          adb shell input keyevent 66
-          adb shell am start -a android.intent.action.MAIN -c android.intent.category.HOME
-          sleep 10
+          adb shell input keyevent KEYCODE_HOME
+          sleep 3
+          
+          echo "🧪 Running instrumentation tests..."
           ./gradlew connectedAndroidTest --no-daemon
 
       - name: Take screenshot
@@ -236,6 +331,7 @@ jobs:
         run: |
           mkdir -p ${{ env.ARTIFACTS_BASE_PATH }}/screenshots
           adb exec-out screencap -p > ${{ env.ARTIFACTS_BASE_PATH }}/screenshots/emulator-${{ matrix.android-version.api }}.png
+          echo "📸 Screenshot captured"
 
       - name: Upload screenshot
         if: always()
@@ -252,11 +348,14 @@ jobs:
           path: |
             app/build/reports/
             app/build/outputs/androidTest-results/
+            ${{ env.ARTIFACTS_BASE_PATH }}/boot-logcat.txt
+            ${{ env.ARTIFACTS_BASE_PATH }}/emulator-log.txt
           retention-days: 1
 
       - name: Stop emulator and cleanup
         if: always()
         run: |
           adb emu kill || echo "Emulator already stopped"
+          adb kill-server || true
           rm -rf $ANDROID_HOME
           rm -rf ${{ github.workspace }}/*
