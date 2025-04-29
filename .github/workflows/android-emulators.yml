@@ -1,24 +1,24 @@
-name: Android Emulator CI (Fast)
+name: Android Emulator CI (Fast Boot)
 
 on: [push, pull_request]
 
 jobs:
   android-emulator-test:
     runs-on: macos-13
-    timeout-minutes: 30  # Reduzido devido à otimização
+    timeout-minutes: 25  # Reduzido devido às otimizações
 
     strategy:
       fail-fast: false
       matrix:
         android-version: [
           { api: 30, name: "11", pixel: "5" },
-          { api: 31, name: "12", pixel: "6a" },
+          { api: 31, name: "12", pixel: "6a" }, 
           { api: 33, name: "13", pixel: "7a" },
           { api: 34, name: "14", pixel: "8a" },
           { api: 35, name: "15", pixel: "8a" }
         ]
 
-    name: Android Emulator Test - API ${{ matrix.android-version.api }}
+    name: Android Test - API ${{ matrix.android-version.api }}
 
     env:
       ANDROID_HOME: ${{ github.workspace }}/android-sdk
@@ -45,182 +45,138 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Cache Gradle and Android SDK
+      - name: Cache dependencies
         uses: actions/cache@v3
         with:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-            ~/.android
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: ${{ runner.os }}-gradle-
+            ~/.android/avd
+            ~/.android/cache
+          key: ${{ runner.os }}-android-${{ matrix.android-version.api }}-${{ hashFiles('**/*.gradle*') }}
+          restore-keys: |
+            ${{ runner.os }}-android-${{ matrix.android-version.api }}-
+            ${{ runner.os }}-android-
 
-      - name: Cache AVD snapshots
-        id: cache-snapshot
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.android/avd/test.avd/snapshots/*
-          key: ${{ runner.os }}-avd-snapshot-${{ matrix.android-version.api }}
-
-      - name: Install Android SDK (optimized)
+      - name: Install Android SDK
         run: |
-          mkdir -p $ANDROID_HOME/cmdline-tools
-          url=$(curl -s https://developer.android.com/studio#command-tools | grep -oE 'https://dl.google.com/android/repository/commandlinetools-mac-[0-9]+_latest.zip' | head -1)
-          curl -o sdk.zip "$url"
-          unzip sdk.zip -d $ANDROID_HOME/cmdline-tools
-          mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
+          mkdir -p $ANDROID_HOME/cmdline-tools/latest
+          curl -o sdk.zip https://dl.google.com/android/repository/commandlinetools-mac-9477386_latest.zip
+          unzip sdk.zip -d $ANDROID_HOME/cmdline-tools/latest
           echo "$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator" >> $GITHUB_PATH
 
-      - name: Detect latest build-tools version
-        id: buildtools
-        run: |
-          version=$(sdkmanager --list | grep -o 'build-tools;[0-9.]*' | sed 's/build-tools;//' | sort -V | tail -1)
-          echo "BUILD_TOOLS_VERSION=$version" >> $GITHUB_ENV
-          
-      - name: Set system image based on architecture
-        run: |
-          arch=$(uname -m)
-          api=${{ matrix.android-version.api }}
-          if [[ "$arch" == "x86_64" ]]; then
-            echo "SYSTEM_IMAGE=google_apis_playstore;x86_64" >> $GITHUB_ENV
-          elif [[ "$arch" == "arm64" || "$arch" == "aarch64" ]]; then
-            echo "SYSTEM_IMAGE=google_apis_playstore;arm64-v8a" >> $GITHUB_ENV
-          else
-            echo "Unsupported architecture: $arch"
-            exit 1
-          fi
-
-      - name: Accept licenses and install SDK components
+      - name: Install SDK components
         run: |
           printf "y\ny\ny\ny\ny\ny\ny\ny\n" | sdkmanager --licenses > /dev/null
-          sdkmanager --install \
-            "tools" \
-            "build-tools;${{ env.BUILD_TOOLS_VERSION }}" \
-            "platform-tools" \
-            "platforms;android-${{ matrix.android-version.api }}" \
-            "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" \
-            "emulator"
+          sdkmanager --install "platform-tools" "emulator"
+          sdkmanager --install "platforms;android-${{ matrix.android-version.api }}"
+          sdkmanager --install "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}"
 
-      - name: Build project
+      - name: Configure AVD
         run: |
-          ./gradlew build --no-daemon -Pandroid.buildToolsVersion=${{ env.BUILD_TOOLS_VERSION }}
-
-      - name: Create optimized AVD
-        run: |
-          MEMORY_SIZE=$([[ "${{ matrix.android-version.api }}" -le 30 ]] && echo 2048 || echo 3072)
+          MEMORY_SIZE=3072
           echo "MEMORY_SIZE=$MEMORY_SIZE" >> $GITHUB_ENV
 
           echo "no" | avdmanager create avd -n test \
             -d "pixel_${{ matrix.android-version.pixel }}" \
             -k "system-images;android-${{ matrix.android-version.api }};${{ env.SYSTEM_IMAGE }}" \
             --force
-          
+
           CONFIG_PATH="$HOME/.android/avd/test.avd/config.ini"
-          
-          # Configurações otimizadas
           cat <<EOF >> $CONFIG_PATH
-          hw.accelerometer=no
-          hw.audioInput=no
-          hw.audioOutput=no
-          hw.battery=no
-          hw.gps=no
-          hw.camera.front=no
-          hw.camera.back=no
-          hw.lcd.density=240
           hw.ramSize=$MEMORY_SIZE
           hw.gpu.enabled=yes
-          hw.gpu.mode=swiftshader_indirect
-          hw.initialSnapshot=boot
+          hw.gpu.mode=auto
+          hw.keyboard=yes
+          hw.mainKeys=no
+          hw.camera.back=none
+          hw.camera.front=none
           vm.heapSize=256
-          hw.sdCard=no
+          disk.dataPartition.size=2G
+          fastboot.forceFastBoot=yes
           fastboot.forceChosenSnapshotBoot=yes
           EOF
 
-      - name: Create boot snapshot (1st run)
-        if: ${{ !steps.cache-snapshot.outputs.cache-hit }}
+      - name: Create boot snapshot
+        if: ${{ !steps.cache-deps.outputs.cache-hit }}
         run: |
+          echo "Creating optimized boot snapshot..."
           $ANDROID_HOME/emulator/emulator -avd test \
-            -wipe-data \
             -no-snapshot-load \
             -no-snapshot-save \
-            -quit-after-boot 120
-          echo "Boot snapshot created"
+            -wipe-data \
+            -gpu swiftshader_indirect \
+            -memory $MEMORY_SIZE \
+            -no-audio \
+            -no-boot-anim \
+            -no-window \
+            -qemu -smp 4 \
+            -accel on \
+            -quit-after-boot 180 &
 
-      - name: Start emulator (optimized)
+          # Wait for snapshot creation
+          for i in {1..36}; do
+            if [[ -f ~/.android/avd/test.avd/snapshots/default_boot/ram.img ]]; then
+              echo "Snapshot created successfully"
+              pkill -f emulator || true
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Failed to create snapshot"
+          exit 1
+
+      - name: Start emulator from snapshot
         run: |
           $ANDROID_HOME/emulator/emulator -avd test \
+            -snapshot default_boot \
             -no-snapshot-save \
-            -snapshot boot \
             -no-audio \
             -no-boot-anim \
             -no-window \
             -gpu swiftshader_indirect \
             -memory $MEMORY_SIZE \
-            -partition-size 4096 \
-            -qemu -smp 4,threads=2 \
+            -qemu -smp 4 \
             -accel on &
 
-      - name: Wait for emulator (fast)
+      - name: Wait for emulator
         timeout-minutes: 3
         run: |
           adb wait-for-device
-          for i in {1..12}; do
-            if adb shell getprop sys.boot_completed | grep -q 1; then
-              echo "Emulator ready in $((i*5)) seconds"
+          echo "Device connected, waiting for boot completion..."
+          
+          for i in {1..18}; do
+            if adb shell getprop sys.boot_completed | grep -q 1 && \
+               adb shell pm list packages 2>/dev/null | grep -q 'package:android'; then
+              echo "Emulator ready in $((i*10)) seconds"
               adb shell input keyevent 82
+              adb shell settings put global window_animation_scale 0
+              adb shell settings put global transition_animation_scale 0
+              adb shell settings put global animator_duration_scale 0
               exit 0
             fi
-            sleep 5
+            sleep 10
           done
+          
           echo "Timeout waiting for emulator"
+          adb emu kill || true
           exit 1
 
-      - name: Configure emulator system settings
+      - name: Build and test
         run: |
-          adb shell settings put global window_animation_scale 0
-          adb shell settings put global transition_animation_scale 0
-          adb shell settings put global animator_duration_scale 0
-          adb shell settings put global hidden_api_policy 1
-          adb shell settings put global force_resizable_activities 1
-          adb shell svc power stayon true
+          ./gradlew assembleDebug connectedAndroidTest --no-daemon
 
-      - name: Install APK
-        timeout-minutes: 2
-        run: adb install app/build/outputs/apk/debug/app-debug.apk
-
-      - name: Run instrumentation tests
-        run: | 
-          adb shell input keyevent 82
-          adb shell input keyevent 66
-          adb shell am start -a android.intent.action.MAIN -c android.intent.category.HOME
-          sleep 5
-          ./gradlew connectedAndroidTest --no-daemon
-
-      - name: Take screenshot
+      - name: Collect artifacts
         if: always()
-        run: |
-          mkdir -p ${{ env.ARTIFACTS_BASE_PATH }}/screenshots
-          adb exec-out screencap -p > ${{ env.ARTIFACTS_BASE_PATH }}/screenshots/emulator-${{ matrix.android-version.api }}.png
-
-      - name: Upload screenshot
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: screenshot-api-${{ matrix.android-version.api }}
-          path: ${{ env.ARTIFACTS_BASE_PATH }}/screenshots/*.png
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: test-results-api-${{ matrix.android-version.api }}
           path: |
             app/build/reports/
             app/build/outputs/androidTest-results/
-          retention-days: 1
+            ${{ env.ARTIFACTS_BASE_PATH }}/
 
-      - name: Stop emulator and cleanup
+      - name: Cleanup
         if: always()
         run: |
           adb emu kill || true
