@@ -93,7 +93,7 @@ jobs:
 
       - name: Accept licenses and install SDK components
         run: |
-          yes | sdkmanager --licenses >/dev/null
+          printf "y\ny\ny\ny\ny\ny\ny\ny\n" | sdkmanager --licenses > /dev/null
           sdkmanager --install \
             "tools" \
             "build-tools;${{ env.BUILD_TOOLS_VERSION }}" \
