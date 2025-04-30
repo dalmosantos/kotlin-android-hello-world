@@ -11,10 +11,10 @@ jobs:
       fail-fast: false
       matrix:
         android-version: [
-          # { api: 24, name: "7.0", pixel: "xl" },
-          # { api: 26, name: "8.0", pixel: "2" },
-          # { api: 28, name: "9", pixel: "3a" },
-          # { api: 29, name: "10", pixel: "4a" },
+          { api: 24, name: "7.0", pixel: "xl" },
+          { api: 26, name: "8.0", pixel: "2" },
+          { api: 28, name: "9", pixel: "3a" },
+          { api: 29, name: "10", pixel: "4a" },
           { api: 30, name: "11", pixel: "5" },
           { api: 31, name: "12", pixel: "6a" },
           { api: 33, name: "13", pixel: "7a" },
@@ -69,12 +69,14 @@ jobs:
           mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
           echo "$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator" >> $GITHUB_PATH
 
-      - name: Detect latest build-tools version
-        id: buildtools
+      - name: Detect compatible build-tools version
         run: |
-          version=$(sdkmanager --list | grep -o 'build-tools;[0-9.]*' | sed 's/build-tools;//' | sort -V | tail -1)
-          echo "BUILD_TOOLS_VERSION=$version" >> $GITHUB_ENV
-
+          api=${{ matrix.android-version.api }}
+          sdkmanager --list | grep -o 'build-tools;[0-9.]*' | sed 's/build-tools;//' \
+            | sort -V | grep "^${api%?}" | tail -1 | while read version; do
+                echo "BUILD_TOOLS_VERSION=$version" >> $GITHUB_ENV
+            done
+      
       - name: Set system image based on architecture
         run: |
           arch=$(uname -m)
