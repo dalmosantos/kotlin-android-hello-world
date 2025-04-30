@@ -4,7 +4,7 @@ on: [push, pull_request]
 
 jobs:
   android-emulator-test:
-    runs-on: macos-13
+    runs-on: macos-13-large
     timeout-minutes: 25
 
     strategy:
@@ -219,7 +219,16 @@ jobs:
           echo "🔓 Configuring hidden API access..."
           adb shell settings put global hidden_api_policy 1
           echo "✅ Hidden API access configured"
-          
+
+          echo "🔒 Disabling device lock..."
+          adb shell settings put system lock_screen_lock_after_timeout 0
+          echo "✅ Device lock disabled" 
+ 
+          echo " Disable bluetooth"
+          adb shell settings put global bluetooth_disabled_profiles 0
+          # adb shell cmd bluetooth_manager disable
+          echo "✅ Bluetooth disabled"
+ 
           echo "📐 Setting resizable activities..."
           adb shell settings put global force_resizable_activities 1
           echo "✅ Resizable activities configured"
@@ -288,7 +297,7 @@ jobs:
           adb shell settings put global debug_view_attributes 1
           
           # Wait for system to stabilize
-          sleep 10
+          sleep 20
 
       - name: Run instrumentation tests
         run: | 
