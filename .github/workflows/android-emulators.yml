@@ -235,8 +235,8 @@ jobs:
           adb shell input keyevent 66
           adb shell am start -a android.intent.action.MAIN -c android.intent.category.HOME
           # Wait for app to be idle
-          sleep 10
-          adb shell am wait-for-debugger
+          sleep 30
+          # Run tests
           ./gradlew connectedAndroidTest --no-daemon -Pandroid.buildToolsVersion=${{ env.BUILD_TOOLS_VERSION }}
 
       - name: Take screenshot
