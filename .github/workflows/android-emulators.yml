@@ -11,18 +11,18 @@ jobs:
       fail-fast: false
       matrix:
         android-version: [
-          { api: 24, name: "7.0", pixel: "xl" },
-          { api: 26, name: "8.0", pixel: "2" },
-          { api: 28, name: "9", pixel: "3a" },
-          { api: 29, name: "10", pixel: "4a" },
-          { api: 30, name: "11", pixel: "5" },
+          # { api: 24, name: "7.0", pixel: "xl" },
+          # { api: 26, name: "8.0", pixel: "2" },
+          # { api: 28, name: "9", pixel: "3a" },
+          # { api: 29, name: "10", pixel: "4a" },
+          # { api: 30, name: "11", pixel: "5" },
           { api: 31, name: "12", pixel: "6a" },
           { api: 33, name: "13", pixel: "7a" },
           { api: 34, name: "14", pixel: "8a" },
           { api: 35, name: "15", pixel: "8a" }
         ]
 
-    name: Android Emulator Test - API ${{ matrix.android-version.api }}
+    name: Android Emulator Test - Version-${{ matrix.android-version.name }} @Pixel${{ matrix.android-version.pixel }}_API_${{ matrix.android-version.api }}
 
     env:
       ANDROID_HOME: ${{ github.workspace }}/android-sdk
@@ -73,10 +73,11 @@ jobs:
         run: |
           api=${{ matrix.android-version.api }}
           sdkmanager --list | grep -o 'build-tools;[0-9.]*' | sed 's/build-tools;//' \
-            | sort -V | grep "^${api%?}" | tail -1 | while read version; do
+            | sort -V | grep "^$api[.]" | tail -1 | while read version; do
                 echo "BUILD_TOOLS_VERSION=$version" >> $GITHUB_ENV
             done
-      
+          echo "Using build-tools ${{ env.BUILD_TOOLS_VERSION }}"
+
       - name: Set system image based on architecture
         run: |
           arch=$(uname -m)
