@@ -5,7 +5,7 @@ on: [push, pull_request]
 jobs:
   android-emulator-test:
     runs-on: macos-13
-    timeout-minutes: 30
+    timeout-minutes: 25
 
     strategy:
       fail-fast: false
@@ -130,7 +130,7 @@ jobs:
           # Start the emulator with macOS-friendly flags
           $ANDROID_HOME/emulator/emulator -avd test \
             -timezone America/Sao_Paulo \
-            -no-snapshot -no-audio -no-boot-anim -no-window \
+            -no-snapshot -no-audio -no-boot-anim \
             -netdelay none -netspeed full \
             -camera-back none -camera-front none \
             -gpu swiftshader_indirect \
@@ -141,7 +141,7 @@ jobs:
             -qemu -smp 4 &
         
       - name: Wait for emulator to boot
-        timeout-minutes: 10
+        timeout-minutes: 12
         run: |
           set -euo pipefail
       
@@ -232,14 +232,21 @@ jobs:
           echo "✨ Emulator configuration completed successfully!"
             
       - name: Install APK
-        timeout-minutes: 5
+        timeout-minutes: 4
         run: adb install app/build/outputs/apk/debug/app-debug.apk
 
       - name: Run instrumentation tests
         run: | 
+          # Send wakeup key event (KEYCODE_WAKEUP = 224)
+          adb shell input keyevent 224
+          sleep 5
           # Unlock screen and focus home
           adb shell input keyevent 82
+          sleep 5
+          # Press enter to focus on the home screen
           adb shell input keyevent 66
+          sleep 5
+          # Launch the home screen
           adb shell am start -a android.intent.action.MAIN -c android.intent.category.HOME
           # Wait for app to be idle
           sleep 30
