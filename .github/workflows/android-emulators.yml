@@ -148,15 +148,15 @@ jobs:
           MAX_ATTEMPTS=30
           SLEEP_SECONDS=20
           BOOT_COMPLETE_PROP="sys.boot_completed"
-          LOGCAT_FILE="${{ env.ARTIFACTS_BASE_PATH }}/boot-logcat.txt"
+          LOGCAT_FILE="${ARTIFACTS_BASE_PATH}/boot-logcat.txt"
       
           # Ensure logcat directory exists
           mkdir -p "$(dirname "$LOGCAT_FILE")"
           touch "$LOGCAT_FILE"
-
+      
           # Kill existing logcat processes
           pkill -f "adb logcat" || true
-
+      
           # Start capturing logcat output
           adb logcat -G 16M
           adb logcat -v time *:V > "$LOGCAT_FILE" &
@@ -179,7 +179,14 @@ jobs:
           }
       
           if wait_for_emulator; then
-            adb shell input keyevent 82
+            echo "Emulator booted, sending keyevent to unlock..."
+            RETRIES=0
+            MAX_RETRIES=3
+            until adb shell input keyevent 82 || [ $RETRIES -eq $MAX_RETRIES ]; do
+              echo "🔄 Keyevent input failed, retrying..."
+              sleep 3
+              RETRIES=$((RETRIES+1))
+            done
             android_version=$(adb shell getprop ro.build.version.release)
             echo "# ----- 📱 Android Version: $android_version -----"
           else
