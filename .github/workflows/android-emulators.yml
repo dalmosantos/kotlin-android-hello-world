@@ -239,17 +239,17 @@ jobs:
         run: | 
           # Send wakeup key event (KEYCODE_WAKEUP = 224)
           adb shell input keyevent 224
-          sleep 5
+          sleep 3
           # Unlock screen and focus home
           adb shell input keyevent 82
-          sleep 5
+          sleep 3
           # Press enter to focus on the home screen
           adb shell input keyevent 66
-          sleep 5
+          sleep 3
           # Launch the home screen
           adb shell am start -a android.intent.action.MAIN -c android.intent.category.HOME
           # Wait for app to be idle
-          sleep 30
+          sleep 10
           # Run tests
           ./gradlew connectedAndroidTest --no-daemon -Pandroid.buildToolsVersion=${{ env.BUILD_TOOLS_VERSION }}
 
