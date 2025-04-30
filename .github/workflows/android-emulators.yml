@@ -17,9 +17,9 @@ jobs:
           # { api: 29, name: "10", pixel: "4a" },
           # { api: 30, name: "11", pixel: "5" },
           { api: 31, name: "12", pixel: "6a" },
-          { api: 33, name: "13", pixel: "7a" },
-          { api: 34, name: "14", pixel: "8a" },
-          { api: 35, name: "15", pixel: "8a" }
+          { api: 33, name: "13", pixel: "6a" },
+          { api: 34, name: "14", pixel: "7a" },
+          { api: 35, name: "15", pixel: "7a" }
         ]
 
     name: Android Emulator Test - Version-${{ matrix.android-version.name }} @Pixel${{ matrix.android-version.pixel }}_API_${{ matrix.android-version.api }}
@@ -86,7 +86,7 @@ jobs:
           if [[ "$arch" == "x86_64" && "$api" -lt 30 ]]; then
             echo "SYSTEM_IMAGE=google_apis;x86_64" >> $GITHUB_ENV
           elif [[ "$arch" == "x86_64" ]]; then
-            echo "SYSTEM_IMAGE=google_apis;x86_64" >> $GITHUB_ENV
+            echo "SYSTEM_IMAGE=google_apis_playstore;x86_64" >> $GITHUB_ENV
           elif [[ "$arch" == "arm64" || "$arch" == "aarch64" ]]; then
             echo "SYSTEM_IMAGE=google_apis_playstore;arm64-v8a" >> $GITHUB_ENV
           else
