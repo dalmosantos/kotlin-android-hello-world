@@ -66,7 +66,7 @@ jobs:
           mkdir -p $ANDROID_HOME/cmdline-tools
           url=$(curl -s https://developer.android.com/studio#command-tools | grep -oE 'https://dl.google.com/android/repository/commandlinetools-mac-[0-9]+_latest.zip' | head -1)
           curl -o sdk.zip "$url"
-          unzip sdk.zip -d $ANDROID_HOME/cmdline-tools
+          unzip -q sdk.zip -d $ANDROID_HOME/cmdline-tools
           mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
           echo "$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator" >> $GITHUB_PATH
 

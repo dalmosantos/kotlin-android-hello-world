@@ -1,0 +1,27 @@
+name: CI - Feature Branches
+
+on:
+  push:
+    branches:
+      - 'feature/*'
+
+jobs:
+  android_tests:
+    uses: ./.github/workflows/android-multi-version-test.yml
+    with:
+      android_version: 13
+      api_level: 33
+      pixel: 7a
+      system_image: "system-images;android-33;google_apis;x86_64"
+      runner_type: macos-13
+      architecture: x86_64
+      java_version: 17
+      gradle_version: 8.13
+      android_home: ${{ github.workspace }}/android-sdk
+      android_sdk_root: ${{ github.workspace }}/android-sdk
+      timezone: America/Sao_Paulo
+      language: en_US.UTF-8
+      locale: en_US.UTF-8
+      max_parallel: 2
+      timeout-minutes: 90
+      commit_hash_short: ${{ github.sha }}

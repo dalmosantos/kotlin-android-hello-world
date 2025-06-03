@@ -1,0 +1,339 @@
+name: Android Multi-Version Test Template
+
+on:
+  workflow_call:
+    inputs:
+      android_version:
+        required: true
+        type: string
+        description: 'Android version name'
+      api_level:
+        required: true
+        type: number
+        description: 'Android API level'
+      pixel:
+        required: true
+        type: string
+        description: 'Pixel device model'
+      system_image:
+        required: true
+        type: string
+        description: 'Android system image path'
+      runner_type:
+        required: true
+        type: string
+        description: 'GitHub runner type'
+      architecture:
+        required: true
+        type: string
+        description: 'CPU architecture'
+      java_version:
+        required: true
+        type: string
+        description: 'Java version'
+      gradle_version:
+        required: true
+        type: string
+        description: 'Gradle version'
+      android_home:
+        required: true
+        type: string
+        description: 'Android SDK home directory'
+      android_sdk_root:
+        required: true
+        type: string
+        description: 'Android SDK root directory'
+      timezone:
+        required: true
+        type: string
+        description: 'Timezone setting'
+      language:
+        required: true
+        type: string
+        description: 'Language setting'
+      locale:
+        required: true
+        type: string
+        description: 'Locale setting'
+      max_parallel:
+        required: true
+        type: number
+        description: 'Maximum parallel jobs'
+      timeout-minutes:
+        required: true
+        type: number
+        default: 60
+        description: 'Timeout in minutes'
+      commit_hash_short:
+        required: false
+        type: string
+        default: ''
+        description: 'Short commit hash for job naming'
+
+jobs:
+  android_test:
+    runs-on: ${{ inputs.runner_type }}
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ inputs.max_parallel > 0 && inputs.max_parallel || 1 }}
+      matrix:
+        include:
+          - dummy: value
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    name: ${{ inputs.commit_hash_short != '' && format('Test Android {0} (API {1}) - Pixel {2} - {3}', inputs.android_version, inputs.api_level, inputs.pixel, inputs.commit_hash_short) || format('Test Android {0} (API {1}) - Pixel {2}', inputs.android_version, inputs.api_level, inputs.pixel) }}
+
+    env:
+      ANDROID_HOME: ${{ inputs.android_home }}
+      ANDROID_SDK_ROOT: ${{ inputs.android_sdk_root }}
+      ARTIFACTS_BASE_PATH: artifacts/${{ inputs.api_level }}
+      TZ: ${{ inputs.timezone }}
+      LANG: ${{ inputs.language }}
+      LC_ALL: ${{ inputs.locale }}
+      EMULATOR_PORTS: "5554 5556"
+      MEMORY_SIZE: ${{ inputs.api_level <= 26 && '2048' || '3072' }}
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup JDK ${{ inputs.java_version }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ inputs.java_version }}
+
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v2
+        with:
+          gradle-version: ${{ inputs.gradle_version }}
+
+      - name: Cache Gradle and SDK
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            ~/.android
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-${{ inputs.gradle_version }}
+          restore-keys: ${{ runner.os }}-gradle-
+
+      - name: Install Android SDK
+        run: |
+          mkdir -p $ANDROID_HOME/cmdline-tools
+          url=$(curl -s https://developer.android.com/studio#command-tools | grep -oE 'https://dl.google.com/android/repository/commandlinetools-mac-[0-9]+_latest.zip' | head -1)
+          curl -o sdk.zip "$url"
+          unzip -q sdk.zip -d $ANDROID_HOME/cmdline-tools
+          mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator" >> $GITHUB_PATH
+
+      - name: Detect compatible build-tools version
+        id: buildtools
+        run: |
+          api=${{ inputs.api_level }}
+          sdkmanager --list | grep -o 'build-tools;[0-9.]*' | sed 's/build-tools;//' \
+            | sort -V | grep "^$api[.]" | tail -1 | while read version; do
+                echo "BUILD_TOOLS_VERSION=$version" >> $GITHUB_ENV
+            done
+          echo "Using build-tools $BUILD_TOOLS_VERSION for API $api"
+
+      - name: Set system image based on architecture
+        run: |
+          arch=$(uname -m)
+          api=${{ inputs.api_level }}
+          if [[ "$arch" == "x86_64" && "$api" -lt 30 ]]; then
+            echo "SYSTEM_IMAGE=google_apis;x86_64" >> $GITHUB_ENV
+          elif [[ "$arch" == "x86_64" ]]; then
+            echo "SYSTEM_IMAGE=google_apis_playstore;x86_64" >> $GITHUB_ENV
+          elif [[ "$arch" == "arm64" || "$arch" == "aarch64" ]]; then
+            echo "SYSTEM_IMAGE=google_apis_playstore;arm64-v8a" >> $GITHUB_ENV
+          else
+            echo "Unsupported architecture: $arch"
+            exit 1
+          fi
+
+      - name: Accept licenses and install SDK components
+        run: |
+          printf "y\ny\ny\ny\ny\ny\ny\ny\n" | sdkmanager --licenses > /dev/null
+          sdkmanager --update --channel=0
+          sdkmanager --install --channel=0 \
+            "tools" \
+            "build-tools;${{ env.BUILD_TOOLS_VERSION }}" \
+            "platform-tools" \
+            "platforms;android-${{ inputs.api_level }}" \
+            "system-images;android-${{ inputs.api_level }};${{ env.SYSTEM_IMAGE }}" \
+            "emulator"
+
+      - name: Build project
+        run: |
+          unset ANDROID_SDK_ROOT
+          ./gradlew build --no-daemon -Pandroid.buildToolsVersion=${{ env.BUILD_TOOLS_VERSION }}
+
+      - name: Create AVDs
+        run: |
+          for port in $EMULATOR_PORTS; do
+            avd_num=${port: -1}
+            echo "no" | avdmanager create avd -n test$avd_num \
+              -d "pixel_${{ inputs.pixel }}" \
+              -k "system-images;android-${{ inputs.api_level }};${{ env.SYSTEM_IMAGE }}" \
+              --force
+          done
+
+      - name: Start emulators
+        run: |
+          set -euo pipefail
+          $ANDROID_HOME/emulator/emulator -accel-check || true
+          adb start-server
+          
+          for port in $EMULATOR_PORTS; do
+            avd_num=${port: -1}
+            $ANDROID_HOME/emulator/emulator -avd test$avd_num -port $port \
+              -timezone $TZ \
+              -no-window -no-snapshot -no-audio -no-boot-anim \
+              -netdelay none -netspeed full \
+              -camera-back none -camera-front none \
+              -gpu swiftshader_indirect \
+              -memory $MEMORY_SIZE \
+              -partition-size 4096 \
+              -cache-size 2048 \
+              -accel on \
+              -qemu -smp 2 > /dev/null 2>&1 &
+          done
+          sleep 30
+
+      - name: Wait for emulators to boot
+        timeout-minutes: 12
+        run: |
+          set -euo pipefail
+          MAX_ATTEMPTS=30
+          SLEEP_SECONDS=20
+          BOOT_COMPLETE_PROP="sys.boot_completed"
+          
+          for port in $EMULATOR_PORTS; do
+            n=0
+            boot_completed=""
+            until [[ "$boot_completed" == "1" || $n -ge $MAX_ATTEMPTS ]]; do
+              boot_completed=$(adb -s emulator-$port shell getprop $BOOT_COMPLETE_PROP 2>/dev/null | tr -d '\r')
+              echo "Emulator $port boot_completed: $boot_completed"
+              sleep $SLEEP_SECONDS
+              n=$((n+1))
+            done
+            
+            if [[ "$boot_completed" != "1" ]]; then
+              echo "❌ Emulator on port $port failed to boot"
+              exit 1
+            fi
+            
+            # Unlock screen
+            RETRIES=0
+            MAX_RETRIES=3
+            until adb -s emulator-$port shell input keyevent 82 || [ $RETRIES -eq $MAX_RETRIES ]; do
+              echo "🔄 Keyevent input failed for emulator-$port, retrying..."
+              sleep 3
+              RETRIES=$((RETRIES+1))
+            done
+            
+            android_version=$(adb -s emulator-$port shell getprop ro.build.version.release)
+            echo "# ----- 📱 Emulator $port Android Version: $android_version -----"
+          done
+          sleep 5
+
+      - name: Configure emulator system settings
+        run: |
+          for port in $EMULATOR_PORTS; do
+            echo "🔧 Configuring emulator-$port..."
+            adb -s emulator-$port shell settings put global window_animation_scale 0
+            adb -s emulator-$port shell settings put global transition_animation_scale 0
+            adb -s emulator-$port shell settings put global animator_duration_scale 0
+            adb -s emulator-$port shell settings put global hidden_api_policy 1
+            adb -s emulator-$port shell settings put global hidden_api_policy_pre_p_apps 1
+            adb -s emulator-$port shell settings put global hidden_api_policy_p_apps 1
+            adb -s emulator-$port shell settings put system lock_screen_lock_after_timeout 0
+            adb -s emulator-$port shell settings put global bluetooth_disabled_profiles 0
+            adb -s emulator-$port shell settings put global force_resizable_activities 1
+            adb -s emulator-$port shell svc power stayon true
+            adb -s emulator-$port shell settings put global window_animation_scale 0.0
+            adb -s emulator-$port shell settings put global window_force_show_navbar 1
+            adb -s emulator-$port shell settings put global enable_freeform_support 1
+            adb -s emulator-$port shell settings put global keyboard_show_on_screen 0
+            adb -s emulator-$port shell settings put global window_force_hardware_focus 1
+          done
+          sleep 10
+          echo "✨ Emulator configuration completed successfully!"
+
+      - name: Install APKs
+        timeout-minutes: 4
+        run: |
+          for port in $EMULATOR_PORTS; do
+            adb -s emulator-$port install app/build/outputs/apk/debug/app-debug.apk
+          done
+
+      - name: Prepare for UI tests
+        run: |
+          for port in $EMULATOR_PORTS; do
+            for i in {1..3}; do
+              echo "📱 Sending wakeup sequence to emulator-$port (attempt $i)..."
+              adb -s emulator-$port shell input keyevent 224 && sleep 2
+              adb -s emulator-$port shell input keyevent 82 && sleep 2
+              adb -s emulator-$port shell input keyevent 66 && sleep 2
+              adb -s emulator-$port shell input keyevent 3 && sleep 2
+              adb -s emulator-$port shell input keyevent 4 && sleep 2
+            done
+            
+            adb -s emulator-$port shell am start -a android.intent.action.MAIN -c android.intent.category.HOME
+            sleep 5
+            FOCUS_STATE=$(adb -s emulator-$port shell dumpsys window | grep -E "mCurrentFocus|mFocusedApp")
+            echo "Current focus state for emulator-$port: $FOCUS_STATE"
+            adb -s emulator-$port shell settings put global debug_window_tracing 1
+            adb -s emulator-$port shell settings put global debug_view_attributes 1
+          done
+          sleep 20
+
+      - name: Run instrumentation tests
+        run: |
+          for port in $EMULATOR_PORTS; do
+            ./gradlew connectedAndroidTest --no-daemon \
+              -Pandroid.buildToolsVersion=${{ env.BUILD_TOOLS_VERSION }} \
+              -Pandroid.testInstrumentationRunnerArguments.notAnnotation=androidx.test.filters.LargeTest \
+              -Pandroid.experimental.androidTest.useUnifiedTestPlatform=true \
+              -Dandroid.testInstrumentationRunnerArguments.deviceSerial=emulator-$port \
+              -Dorg.gradle.internal.http.socketTimeout=120000 \
+              -Dorg.gradle.internal.http.connectionTimeout=120000
+          done
+
+      - name: Take screenshots
+        if: always()
+        run: |
+          mkdir -p ${{ env.ARTIFACTS_BASE_PATH }}/screenshots
+          for port in $EMULATOR_PORTS; do
+            adb -s emulator-$port exec-out screencap -p > ${{ env.ARTIFACTS_BASE_PATH }}/screenshots/emulator-${{ inputs.api_level }}-$port.png
+          done
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-api-${{ inputs.api_level }}
+          path: ${{ env.ARTIFACTS_BASE_PATH }}/screenshots/*.png
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-api-${{ inputs.api_level }}
+          path: |
+            app/build/reports/
+            app/build/outputs/androidTest-results/
+          retention-days: 1
+
+      - name: Stop emulators and cleanup
+        if: always()
+        run: |
+          for port in $EMULATOR_PORTS; do
+            adb -s emulator-$port emu kill || echo "Emulator $port already stopped"
+          done
+          rm -rf $ANDROID_HOME
+          rm -rf ${{ github.workspace }}/*
