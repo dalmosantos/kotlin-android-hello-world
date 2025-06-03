@@ -61,6 +61,12 @@ on:
         type: string
         default: ''
         description: 'Short commit hash for job naming'
+      emulator_count:
+        required: false
+        type: number
+        default: 2
+        description: 'Number of emulators to start per runner'
+
 
 jobs:
   android_test:
@@ -81,7 +87,7 @@ jobs:
       TZ: ${{ inputs.timezone }}
       LANG: ${{ inputs.language }}
       LC_ALL: ${{ inputs.locale }}
-      EMULATOR_COUNT: 2
+      EMULATOR_COUNT: ${{ inputs.emulator_count }}
       MEMORY_SIZE: ${{ inputs.api_level <= 26 && '2048' || '3072' }}
 
     defaults:
@@ -109,7 +115,6 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-            ~/.android
             ${{ github.workspace }}/android-sdk
           key: ${{ runner.os }}-android-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-${{ inputs.api_level }}-${{ inputs.gradle_version }}
           restore-keys: |
@@ -168,7 +173,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "Building project with Gradle..."
-          ./gradlew build --no-daemon -Pandroid.buildToolsVersion=${{ env.BUILD_TOOLS_VERSION }}
+          ./gradlew build --no-daemon --build-cache --parallel -Pandroid.buildToolsVersion=${{ env.BUILD_TOOLS_VERSION }}
 
       - name: Create AVDs
         run: |
@@ -218,7 +223,7 @@ jobs:
             
             $ANDROID_HOME/emulator/emulator -avd "$avd_name" \
               -port $port \
-              -no-window -no-snapshot -no-audio -no-boot-anim \
+              -no-window -no-snapshot -no-audio -no-boot-anim -read-only -no-snapshot-save \
               -netdelay none -netspeed full \
               -camera-back none -camera-front none \
               -gpu swiftshader_indirect \
@@ -341,7 +346,7 @@ jobs:
           
           for port in "${EMULATOR_PORTS_ARRAY[@]}"; do
             echo "🧪 Running tests on emulator-$port..."
-            ./gradlew connectedAndroidTest --no-daemon \
+            ./gradlew connectedAndroidTest --no-daemon --build-cache --parallel \
               -Pandroid.buildToolsVersion=${{ env.BUILD_TOOLS_VERSION }} \
               -Pandroid.testInstrumentationRunnerArguments.notAnnotation=androidx.test.filters.LargeTest \
               -Pandroid.experimental.androidTest.useUnifiedTestPlatform=true \

@@ -20,7 +20,7 @@ jobs:
       timezone: America/Sao_Paulo
       language: en_US.UTF-8
       locale: en_US.UTF-8
-      max_parallel: 2
-      timeout-minutes: 90
-      # retries: 3
+      max_parallel: 1
+      timeout-minutes: 45
       commit_hash_short: ${{ github.sha }}
+      emulator_count: 2
