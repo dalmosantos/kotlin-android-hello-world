@@ -212,17 +212,7 @@ jobs:
           # Check acceleration support and log details
           accel_output=$($ANDROID_HOME/emulator/emulator -accel-check || true)
           echo "Acceleration check output: $accel_output"
-          
-          # Determine best acceleration mode
-          if [[ "$accel_output" =~ "Hypervisor.Framework" ]]; then
-            ACCEL_TYPE="hvf"
-          elif [[ "$accel_output" =~ "KVM" ]]; then
-            ACCEL_TYPE="kvm"
-          else
-            ACCEL_TYPE="auto"
-          fi
-          echo "Using acceleration type: $ACCEL_TYPE"
-          
+
           adb start-server
           
           # Generate emulator ports
@@ -244,8 +234,8 @@ jobs:
                 -memory $MEMORY_SIZE \
                 -partition-size 4096 \
                 -cache-size 2048 \
-                -accel $ACCEL_TYPE \
-                -qemu -smp 2 &
+                -accel on \
+                -qemu -smp 4 &
               
               # Wait a bit before starting the next one to reduce resource contention
               if [[ $i -lt $((${#EMULATOR_PORTS_ARRAY[@]} - 1)) ]]; then
@@ -269,8 +259,8 @@ jobs:
                 -memory $MEMORY_SIZE \
                 -partition-size 4096 \
                 -cache-size 2048 \
-                -accel $ACCEL_TYPE \
-                -qemu -smp 2 &
+                -accel on \
+                -qemu -smp 4 &
             done
             sleep 30
           fi
