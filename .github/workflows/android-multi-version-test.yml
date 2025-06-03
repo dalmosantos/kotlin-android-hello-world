@@ -81,7 +81,8 @@ jobs:
       TZ: ${{ inputs.timezone }}
       LANG: ${{ inputs.language }}
       LC_ALL: ${{ inputs.locale }}
-      EMULATOR_PORTS: "5554 5556"
+      EMULATOR_COUNT: 2
+      EMULATOR_PORTS: $(seq 5554 2 $((5554 + (EMULATOR_COUNT - 1) * 2)) | tr '\n' ' ')
       MEMORY_SIZE: ${{ inputs.api_level <= 26 && '2048' || '3072' }}
 
     defaults:
@@ -110,8 +111,13 @@ jobs:
             ~/.gradle/caches
             ~/.gradle/wrapper
             ~/.android
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-${{ inputs.gradle_version }}
-          restore-keys: ${{ runner.os }}-gradle-
+            ${{ github.workspace }}/android-sdk
+          key: ${{ runner.os }}-android-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-${{ inputs.api_level }}-${{ inputs.gradle_version }}
+          restore-keys: |
+            ${{ runner.os }}-android-gradle-${{ inputs.api_level }}-
+            ${{ runner.os }}-android-gradle-
+            ${{ runner.os }}-android-
+          fail-on-cache-miss: false
 
       - name: Install Android SDK
         run: |
@@ -161,7 +167,8 @@ jobs:
 
       - name: Build project
         run: |
-          unset ANDROID_SDK_ROOT
+          set -euo pipefail
+          echo "Building project with Gradle..."
           ./gradlew build --no-daemon -Pandroid.buildToolsVersion=${{ env.BUILD_TOOLS_VERSION }}
 
       - name: Create AVDs
@@ -177,7 +184,21 @@ jobs:
       - name: Start emulators
         run: |
           set -euo pipefail
-          $ANDROID_HOME/emulator/emulator -accel-check || true
+          
+          # Check acceleration support and log details
+          accel_output=$($ANDROID_HOME/emulator/emulator -accel-check || true)
+          echo "Acceleration check output: $accel_output"
+          
+          # Determine best acceleration mode
+          if [[ "$accel_output" =~ "Hypervisor.Framework" ]]; then
+            ACCEL_TYPE="hvf"
+          elif [[ "$accel_output" =~ "KVM" ]]; then
+            ACCEL_TYPE="kvm"
+          else
+            ACCEL_TYPE="auto"
+          fi
+          echo "Using acceleration type: $ACCEL_TYPE"
+          
           adb start-server
           
           for port in $EMULATOR_PORTS; do
@@ -191,7 +212,7 @@ jobs:
               -memory $MEMORY_SIZE \
               -partition-size 4096 \
               -cache-size 2048 \
-              -accel on \
+              -accel $ACCEL_TYPE \
               -qemu -smp 2 > /dev/null 2>&1 &
           done
           sleep 30
