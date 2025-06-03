@@ -202,7 +202,7 @@ jobs:
           adb start-server
           
           for port in $EMULATOR_PORTS; do
-            avd_num=${port: -1}
+            avd_num=$(echo $port | tr -dc '0-9')
             $ANDROID_HOME/emulator/emulator -avd test$avd_num -port $port \
               -timezone $TZ \
               -no-window -no-snapshot -no-audio -no-boot-anim \
