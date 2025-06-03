@@ -1,1 +1,14 @@
-/build
+/build/
+.gradle/
+.idea/
+local.properties
+*.keystore
+.DS_Store
+*.log
+*.hprof
+*.iml
+*.apk
+*.tmp
+*.lock
+Thumbs.db
+.vscode
