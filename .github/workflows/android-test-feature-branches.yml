@@ -12,15 +12,15 @@ jobs:
       android_version: 13
       api_level: 33
       pixel: 7a
-      system_image: "system-images;android-33;google_apis;x86_64"
+      system_image: "system-images;android-33;google_apis_playstore;x86_64"
       runner_type: macos-13
       architecture: x86_64
       java_version: 17
-      gradle_version: 8.13
+      gradle_version: 8.12.1
       timezone: America/Sao_Paulo
       language: en_US.UTF-8
       locale: en_US.UTF-8
       max_parallel: 1
       timeout-minutes: 45
       commit_hash_short: ${{ github.sha }}
-      emulator_count: 2
+      emulator_count: 1
