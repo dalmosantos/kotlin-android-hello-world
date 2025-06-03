@@ -17,8 +17,6 @@ jobs:
       architecture: x86_64
       java_version: 17
       gradle_version: 8.13
-      android_home: ${{ runner.temp }}/android-sdk
-      android_sdk_root: ${{ runner.temp }}/android-sdk
       timezone: America/Sao_Paulo
       language: en_US.UTF-8
       locale: en_US.UTF-8

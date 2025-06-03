@@ -35,14 +35,6 @@ on:
         required: true
         type: string
         description: 'Gradle version'
-      android_home:
-        required: true
-        type: string
-        description: 'Android SDK home directory'
-      android_sdk_root:
-        required: true
-        type: string
-        description: 'Android SDK root directory'
       timezone:
         required: true
         type: string
@@ -83,8 +75,8 @@ jobs:
     name: ${{ inputs.commit_hash_short != '' && format('Test Android {0} (API {1}) - Pixel {2} - {3}', inputs.android_version, inputs.api_level, inputs.pixel, inputs.commit_hash_short) || format('Test Android {0} (API {1}) - Pixel {2}', inputs.android_version, inputs.api_level, inputs.pixel) }}
 
     env:
-      ANDROID_HOME: ${{ inputs.android_home }}
-      ANDROID_SDK_ROOT: ${{ inputs.android_sdk_root }}
+      ANDROID_HOME: ${{ github.workspace }}/android-sdk
+      ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
       ARTIFACTS_BASE_PATH: artifacts/${{ inputs.api_level }}
       TZ: ${{ inputs.timezone }}
       LANG: ${{ inputs.language }}
