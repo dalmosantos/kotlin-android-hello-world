@@ -203,7 +203,7 @@ jobs:
           
           for port in $EMULATOR_PORTS; do
             avd_num=$(echo $port | tr -dc '0-9')
-            $ANDROID_HOME/emulator/emulator -avd test$avd_num -port $port \
+            echo "no" | avdmanager create avd -n test-$avd_num \
               -timezone $TZ \
               -no-window -no-snapshot -no-audio -no-boot-anim \
               -netdelay none -netspeed full \
