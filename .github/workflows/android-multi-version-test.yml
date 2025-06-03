@@ -245,7 +245,7 @@ jobs:
                 -partition-size 4096 \
                 -cache-size 2048 \
                 -accel $ACCEL_TYPE \
-                -qemu -smp 2 > /dev/null 2>&1 &
+                -qemu -smp 2 &
               
               # Wait a bit before starting the next one to reduce resource contention
               if [[ $i -lt $((${#EMULATOR_PORTS_ARRAY[@]} - 1)) ]]; then
@@ -270,7 +270,7 @@ jobs:
                 -partition-size 4096 \
                 -cache-size 2048 \
                 -accel $ACCEL_TYPE \
-                -qemu -smp 2 > /dev/null 2>&1 &
+                -qemu -smp 2 &
             done
             sleep 30
           fi
