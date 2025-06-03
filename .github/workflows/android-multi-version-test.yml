@@ -82,7 +82,6 @@ jobs:
       LANG: ${{ inputs.language }}
       LC_ALL: ${{ inputs.locale }}
       EMULATOR_COUNT: 2
-      EMULATOR_PORTS: $(seq 5554 2 $((5554 + (EMULATOR_COUNT - 1) * 2)) | tr '\n' ' ')
       MEMORY_SIZE: ${{ inputs.api_level <= 26 && '2048' || '3072' }}
 
     defaults:
@@ -173,13 +172,21 @@ jobs:
 
       - name: Create AVDs
         run: |
-          for port in $EMULATOR_PORTS; do
-            avd_num=${port: -1}
-            echo "no" | avdmanager create avd -n test$avd_num \
+          # Generate emulator ports properly
+          EMULATOR_PORTS_ARRAY=($(seq 5554 2 $((5554 + (EMULATOR_COUNT - 1) * 2))))
+          
+          for i in "${!EMULATOR_PORTS_ARRAY[@]}"; do
+            port=${EMULATOR_PORTS_ARRAY[$i]}
+            avd_name="test$i"
+            echo "Creating AVD: $avd_name for port: $port"
+            echo "no" | avdmanager create avd -n "$avd_name" \
               -d "pixel_${{ inputs.pixel }}" \
               -k "system-images;android-${{ inputs.api_level }};${{ env.SYSTEM_IMAGE }}" \
               --force
           done
+          
+          # Export the ports for other steps to use
+          echo "EMULATOR_PORTS_LIST=${EMULATOR_PORTS_ARRAY[*]}" >> $GITHUB_ENV
 
       - name: Start emulators
         run: |
@@ -201,10 +208,16 @@ jobs:
           
           adb start-server
           
-          for port in $EMULATOR_PORTS; do
-            avd_num=$(echo $port | tr -dc '0-9')
-            echo "no" | avdmanager create avd -n test-$avd_num \
-              -timezone $TZ \
+          # Generate emulator ports and start emulators
+          EMULATOR_PORTS_ARRAY=($(seq 5554 2 $((5554 + (EMULATOR_COUNT - 1) * 2))))
+          
+          for i in "${!EMULATOR_PORTS_ARRAY[@]}"; do
+            port=${EMULATOR_PORTS_ARRAY[$i]}
+            avd_name="test$i"
+            echo "Starting emulator $avd_name on port $port"
+            
+            $ANDROID_HOME/emulator/emulator -avd "$avd_name" \
+              -port $port \
               -no-window -no-snapshot -no-audio -no-boot-anim \
               -netdelay none -netspeed full \
               -camera-back none -camera-front none \
@@ -215,6 +228,9 @@ jobs:
               -accel $ACCEL_TYPE \
               -qemu -smp 2 > /dev/null 2>&1 &
           done
+          
+          # Export ports list for subsequent steps
+          echo "EMULATOR_PORTS_LIST=${EMULATOR_PORTS_ARRAY[*]}" >> $GITHUB_ENV
           sleep 30
 
       - name: Wait for emulators to boot
@@ -225,7 +241,10 @@ jobs:
           SLEEP_SECONDS=20
           BOOT_COMPLETE_PROP="sys.boot_completed"
           
-          for port in $EMULATOR_PORTS; do
+          # Convert space-separated string to array
+          read -ra EMULATOR_PORTS_ARRAY <<< "$EMULATOR_PORTS_LIST"
+          
+          for port in "${EMULATOR_PORTS_ARRAY[@]}"; do
             n=0
             boot_completed=""
             until [[ "$boot_completed" == "1" || $n -ge $MAX_ATTEMPTS ]]; do
@@ -256,7 +275,10 @@ jobs:
 
       - name: Configure emulator system settings
         run: |
-          for port in $EMULATOR_PORTS; do
+          # Convert space-separated string to array
+          read -ra EMULATOR_PORTS_ARRAY <<< "$EMULATOR_PORTS_LIST"
+          
+          for port in "${EMULATOR_PORTS_ARRAY[@]}"; do
             echo "🔧 Configuring emulator-$port..."
             adb -s emulator-$port shell settings put global window_animation_scale 0
             adb -s emulator-$port shell settings put global transition_animation_scale 0
@@ -280,13 +302,20 @@ jobs:
       - name: Install APKs
         timeout-minutes: 4
         run: |
-          for port in $EMULATOR_PORTS; do
+          # Convert space-separated string to array
+          read -ra EMULATOR_PORTS_ARRAY <<< "$EMULATOR_PORTS_LIST"
+          
+          for port in "${EMULATOR_PORTS_ARRAY[@]}"; do
+            echo "📱 Installing APK on emulator-$port..."
             adb -s emulator-$port install app/build/outputs/apk/debug/app-debug.apk
           done
 
       - name: Prepare for UI tests
         run: |
-          for port in $EMULATOR_PORTS; do
+          # Convert space-separated string to array
+          read -ra EMULATOR_PORTS_ARRAY <<< "$EMULATOR_PORTS_LIST"
+          
+          for port in "${EMULATOR_PORTS_ARRAY[@]}"; do
             for i in {1..3}; do
               echo "📱 Sending wakeup sequence to emulator-$port (attempt $i)..."
               adb -s emulator-$port shell input keyevent 224 && sleep 2
@@ -307,7 +336,11 @@ jobs:
 
       - name: Run instrumentation tests
         run: |
-          for port in $EMULATOR_PORTS; do
+          # Convert space-separated string to array
+          read -ra EMULATOR_PORTS_ARRAY <<< "$EMULATOR_PORTS_LIST"
+          
+          for port in "${EMULATOR_PORTS_ARRAY[@]}"; do
+            echo "🧪 Running tests on emulator-$port..."
             ./gradlew connectedAndroidTest --no-daemon \
               -Pandroid.buildToolsVersion=${{ env.BUILD_TOOLS_VERSION }} \
               -Pandroid.testInstrumentationRunnerArguments.notAnnotation=androidx.test.filters.LargeTest \
@@ -321,8 +354,13 @@ jobs:
         if: always()
         run: |
           mkdir -p ${{ env.ARTIFACTS_BASE_PATH }}/screenshots
-          for port in $EMULATOR_PORTS; do
-            adb -s emulator-$port exec-out screencap -p > ${{ env.ARTIFACTS_BASE_PATH }}/screenshots/emulator-${{ inputs.api_level }}-$port.png
+          
+          # Convert space-separated string to array
+          read -ra EMULATOR_PORTS_ARRAY <<< "$EMULATOR_PORTS_LIST"
+          
+          for port in "${EMULATOR_PORTS_ARRAY[@]}"; do
+            echo "📸 Taking screenshot from emulator-$port..."
+            adb -s emulator-$port exec-out screencap -p > ${{ env.ARTIFACTS_BASE_PATH }}/screenshots/emulator-${{ inputs.api_level }}-$port.png || echo "Failed to capture screenshot from emulator-$port"
           done
 
       - name: Upload screenshots
@@ -345,8 +383,18 @@ jobs:
       - name: Stop emulators and cleanup
         if: always()
         run: |
-          for port in $EMULATOR_PORTS; do
-            adb -s emulator-$port emu kill || echo "Emulator $port already stopped"
-          done
+          # Convert space-separated string to array (if available)
+          if [[ -n "${EMULATOR_PORTS_LIST:-}" ]]; then
+            read -ra EMULATOR_PORTS_ARRAY <<< "$EMULATOR_PORTS_LIST"
+            for port in "${EMULATOR_PORTS_ARRAY[@]}"; do
+              echo "🛑 Stopping emulator-$port..."
+              adb -s emulator-$port emu kill || echo "Emulator $port already stopped"
+            done
+          fi
+          
+          # Kill any remaining emulator processes
+          pkill -f "emulator" || echo "No emulator processes found"
+          
+          # Cleanup
           rm -rf $ANDROID_HOME
           rm -rf ${{ github.workspace }}/*
