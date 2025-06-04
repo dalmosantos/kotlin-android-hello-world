@@ -4,9 +4,56 @@ on:
   push:
     branches:
       - develop
-
+  workflow_dispatch:
+    inputs:
+      runner_type:
+        description: 'Type of runner to use'
+        default: 'macos-13'
+        required: true
+      architecture:
+        description: 'Architecture to use'
+        default: 'x86_64'
+        required: true
+      java_version:
+        description: 'Java version to use'
+        default: '17'
+        required: true
+      gradle_version:
+        description: 'Gradle version to use'
+        default: '8.13'
+        required: true
+      timezone:
+        description: 'Timezone to use'
+        default: 'America/Sao_Paulo'
+        required: true
+      language:
+        description: 'Language to use'
+        default: 'en_US.UTF-8'
+        required: true
+      locale:
+        description: 'Locale to use'
+        default: 'en_US.UTF-8'
+        required: true
+      max_parallel:
+        description: 'Maximum number of parallel jobs'
+        default: '3'
+        required: true
+      timeout_minutes:
+        description: 'Timeout in minutes'
+        default: '60'
+        required: true
+      emulator_count:
+        description: 'Number of emulators to run'
+        default: '2'
+        required: true
+      sequential_boot:
+        description: 'Boot emulators sequentially'
+        type: boolean
+        default: false
+        required: false
 jobs:
-  android_tests_group1:
+  android_tests_versions_7_to_10:
+    # This job tests Android versions 7.0 to 10.0
     strategy:
       matrix:
         android-version:
@@ -19,20 +66,20 @@ jobs:
       android_version: ${{ matrix.android-version.name }}
       api_level: ${{ matrix.android-version.api }}
       pixel: ${{ matrix.android-version.pixel }}
-      system_image: "system-images;android-${{ matrix.android-version.api }};google_apis;x86_64"
-      runner_type: macos-13
-      architecture: x86_64
-      java_version: 17
-      gradle_version: 8.13
-      timezone: America/Sao_Paulo
-      language: en_US.UTF-8
-      locale: en_US.UTF-8
-      max_parallel: 2
-      timeout-minutes: 60
+      system_image: "system-images;android-${{ matrix.android-version.api }};google_apis;${{ inputs.architecture }}"
+      runner_type: ${{ inputs.runner_type }}
+      architecture: ${{ inputs.architecture }}
+      java_version: ${{ inputs.java_version }}
+      gradle_version: ${{ inputs.gradle_version }}
+      timezone: ${{ inputs.timezone }}
+      language: ${{ inputs.language }}
+      locale: ${{ inputs.locale }}
+      max_parallel: ${{ inputs.max_parallel }}
+      timeout-minutes: ${{ inputs.timeout_minutes }}
       commit_hash_short: ""
-      emulator_count: 3
+      emulator_count: ${{ inputs.emulator_count }}
 
-  android_tests_group2:
+  android_tests_versions_11_to_15:
     strategy:
       matrix:
         android-version:
@@ -46,15 +93,16 @@ jobs:
       android_version: ${{ matrix.android-version.name }}
       api_level: ${{ matrix.android-version.api }}
       pixel: ${{ matrix.android-version.pixel }}
-      system_image: "system-images;android-${{ matrix.android-version.api }};google_apis;x86_64"
-      runner_type: macos-13
-      architecture: x86_64
-      java_version: 17
-      gradle_version: 8.13
-      timezone: America/Sao_Paulo
-      language: en_US.UTF-8
-      locale: en_US.UTF-8
-      max_parallel: 2
-      timeout-minutes: 60
+      system_image: "system-images;android-${{ matrix.android-version.api }};google_apis_playstore;${{ inputs.architecture }}"
+      runner_type: ${{ inputs.runner_type }}
+      architecture: ${{ inputs.architecture }}
+      java_version: ${{ inputs.java_version }}
+      gradle_version: ${{ inputs.gradle_version }}
+      timezone: ${{ inputs.timezone }}
+      language: ${{ inputs.language }}
+      locale: ${{ inputs.locale }}
+      max_parallel: ${{ inputs.max_parallel }}
+      timeout-minutes: ${{ inputs.timeout_minutes }}
       commit_hash_short: ""
-      emulator_count: 3
+      emulator_count: ${{ inputs.emulator_count }}
+
