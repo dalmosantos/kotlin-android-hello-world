@@ -56,7 +56,7 @@ on:
         type: number
         default: 90
         description: 'Timeout in minutes'
-      commit_hash_short:
+      commit_hash:
         required: false
         type: string
         default: ''
