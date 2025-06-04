@@ -297,14 +297,14 @@ jobs:
             boot_completed=""
             boot_anim_exit=""
             
-            until [[ "$boot_completed" == "1" && "$boot_anim_exit" == "1" ]] || [[ $n -ge $MAX_ATTEMPTS ]]; do
+            until [[ "$boot_completed" == "1" && ( "$boot_anim_exit" == "1" || ( -z "$boot_anim_exit" && $n -ge 10 ) ) ]] || [[ $n -ge $MAX_ATTEMPTS ]]; do
               boot_completed=$(adb -s emulator-$port shell getprop $BOOT_COMPLETE_PROP 2>/dev/null | tr -d '\r' || echo "0")
               boot_anim_exit=$(adb -s emulator-$port shell getprop $LAUNCHER_PROP 2>/dev/null | tr -d '\r' || echo "0")
               
               echo "Emulator $port - Attempt $((n+1))/$MAX_ATTEMPTS: boot_completed=$boot_completed, boot_anim_exit=$boot_anim_exit"
               
-              if [[ "$boot_completed" == "1" && "$boot_anim_exit" == "1" ]]; then
-                echo "✅ Emulator $port is ready!"
+              if [[ "$boot_completed" == "1" && ( "$boot_anim_exit" == "1" || ( -z "$boot_anim_exit" && $n -ge 10 ) ) ]]; then
+                echo "✅ Emulator $port is ready (boot_anim_exit workaround)!"
                 break
               fi
               
@@ -312,7 +312,7 @@ jobs:
               n=$((n+1))
             done
             
-            if [[ "$boot_completed" != "1" || "$boot_anim_exit" != "1" ]]; then
+            if [[ "$boot_completed" != "1" || ( "$boot_anim_exit" != "1" && ! ( -z "$boot_anim_exit" && $n -ge 10 ) ) ]]; then
               echo "❌ Emulator on port $port failed to boot within timeout"
               echo "Final state: boot_completed=$boot_completed, boot_anim_exit=$boot_anim_exit"
               
@@ -321,10 +321,17 @@ jobs:
               adb -s emulator-$port shell getprop ro.boot.qemu.cpu 2>/dev/null || echo "Failed to get CPU info"
               adb -s emulator-$port shell getprop ro.kernel.qemu 2>/dev/null || echo "Failed to get kernel info"
               adb -s emulator-$port shell ps | head -20 2>/dev/null || echo "Failed to get process list"
+              adb -s emulator-$port shell logcat -d | tail -100 || echo "Failed to get logcat"
               
               exit 1
             fi
             
+            # Try to force bootanim.exit if it is empty
+            if [[ -z "$boot_anim_exit" ]]; then
+              echo "Forcing setprop service.bootanim.exit 1 on emulator-$port"
+              adb -s emulator-$port shell setprop service.bootanim.exit 1 || true
+            fi
+
             # Additional verification - check if we can unlock screen
             echo "Attempting to unlock screen for emulator-$port..."
             RETRIES=0
