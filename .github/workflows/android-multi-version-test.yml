@@ -185,11 +185,16 @@ jobs:
         run: |
           set -euo pipefail
           echo "Building project with Gradle .."
+          if command -v nproc >/dev/null 2>&1; then
+            MAX_WORKERS=$(nproc)
+          else
+            MAX_WORKERS=$(sysctl -n hw.ncpu)
+          fi
           ./gradlew assembleDebug \
             --build-cache \
             --parallel \
             --configuration-cache \
-            --max-workers=$(nproc) \
+            --max-workers=$MAX_WORKERS \
             -Dorg.gradle.daemon=true \
             -Dorg.gradle.configureondemand=true \
             -Pandroid.buildToolsVersion=${{ env.BUILD_TOOLS_VERSION }}
