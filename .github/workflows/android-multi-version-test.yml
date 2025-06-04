@@ -161,7 +161,7 @@ jobs:
           if [[ "$arch" == "x86_64" && "$api" -lt 30 ]]; then
             echo "SYSTEM_IMAGE=google_apis;x86_64" >> $GITHUB_ENV
           elif [[ "$arch" == "x86_64" ]]; then
-            echo "SYSTEM_IMAGE=google_apis_playstore;x86_64" >> $GITHUB_ENV
+            echo "SYSTEM_IMAGE=google_apis;x86_64" >> $GITHUB_ENV
           elif [[ "$arch" == "arm64" || "$arch" == "aarch64" ]]; then
             echo "SYSTEM_IMAGE=google_apis_playstore;arm64-v8a" >> $GITHUB_ENV
           else
@@ -227,7 +227,8 @@ jobs:
               
               $ANDROID_HOME/emulator/emulator -avd "$avd_name" \
                 -port $port \
-                -no-window -no-snapshot -no-audio -no-boot-anim -read-only -no-snapshot-save \
+                -timezone America/Sao_Paulo \
+                -no-snapshot -no-audio -no-boot-anim \
                 -netdelay none -netspeed full \
                 -camera-back none -camera-front none \
                 -gpu swiftshader_indirect \
@@ -252,7 +253,8 @@ jobs:
               
               $ANDROID_HOME/emulator/emulator -avd "$avd_name" \
                 -port $port \
-                -no-window -no-snapshot -no-audio -no-boot-anim -read-only -no-snapshot-save \
+                -timezone America/Sao_Paulo \
+                -no-snapshot -no-audio -no-boot-anim \
                 -netdelay none -netspeed full \
                 -camera-back none -camera-front none \
                 -gpu swiftshader_indirect \
@@ -262,18 +264,18 @@ jobs:
                 -accel on \
                 -qemu -smp 4 &
             done
-            sleep 30
+          sleep 30
           fi
           
           # Export ports list for subsequent steps
           echo "EMULATOR_PORTS_LIST=${EMULATOR_PORTS_ARRAY[*]}" >> $GITHUB_ENV
 
       - name: Wait for emulators to boot
-        timeout-minutes: 20
+        timeout-minutes: 15
         run: |
           set -euo pipefail
-          MAX_ATTEMPTS=45
-          SLEEP_SECONDS=15
+          MAX_ATTEMPTS=30
+          SLEEP_SECONDS=30
           BOOT_COMPLETE_PROP="sys.boot_completed"
           LAUNCHER_PROP="service.bootanim.exit"
           
