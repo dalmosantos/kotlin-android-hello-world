@@ -161,7 +161,7 @@ jobs:
           if [[ "$arch" == "x86_64" && "$api" -lt 30 ]]; then
             echo "SYSTEM_IMAGE=google_apis;x86_64" >> $GITHUB_ENV
           elif [[ "$arch" == "x86_64" ]]; then
-            echo "SYSTEM_IMAGE=google_apis;x86_64" >> $GITHUB_ENV
+            echo "SYSTEM_IMAGE=google_apis_playstore;x86_64" >> $GITHUB_ENV
           elif [[ "$arch" == "arm64" || "$arch" == "aarch64" ]]; then
             echo "SYSTEM_IMAGE=google_apis_playstore;arm64-v8a" >> $GITHUB_ENV
           else
@@ -236,7 +236,7 @@ jobs:
                 -partition-size 4096 \
                 -cache-size 2048 \
                 -accel on \
-                -qemu -smp 4 &
+                -qemu -smp 2 &
               
               # Wait a bit before starting the next one to reduce resource contention
               if [[ $i -lt $((${#EMULATOR_PORTS_ARRAY[@]} - 1)) ]]; then
@@ -262,20 +262,20 @@ jobs:
                 -partition-size 4096 \
                 -cache-size 2048 \
                 -accel on \
-                -qemu -smp 4 &
+                -qemu -smp 2 > /dev/null 2>&1 &
             done
-          sleep 30
+            sleep 30
           fi
           
           # Export ports list for subsequent steps
           echo "EMULATOR_PORTS_LIST=${EMULATOR_PORTS_ARRAY[*]}" >> $GITHUB_ENV
 
       - name: Wait for emulators to boot
-        timeout-minutes: 15
+        timeout-minutes: 20
         run: |
           set -euo pipefail
-          MAX_ATTEMPTS=30
-          SLEEP_SECONDS=30
+          MAX_ATTEMPTS=45
+          SLEEP_SECONDS=15
           BOOT_COMPLETE_PROP="sys.boot_completed"
           LAUNCHER_PROP="service.bootanim.exit"
           
