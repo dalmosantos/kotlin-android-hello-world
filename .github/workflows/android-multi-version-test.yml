@@ -167,7 +167,7 @@ jobs:
             "build-tools;${{ env.BUILD_TOOLS_VERSION }}" \
             "platform-tools" \
             "platforms;android-${{ inputs.api_level }}" \
-            "system-images;android-${{ inputs.api_level }};${{ env.SYSTEM_IMAGE }}" \
+            "${{ env.SYSTEM_IMAGE }}" \
             "emulator"
             
       - name: Build project
@@ -199,7 +199,7 @@ jobs:
             echo "Creating AVD: $avd_name for port: $port"
             echo "no" | avdmanager create avd -n "$avd_name" \
               -d "pixel_${{ inputs.pixel }}" \
-              -k "system-images;android-${{ inputs.api_level }};${{ env.SYSTEM_IMAGE }}" \
+              -k "${{ env.SYSTEM_IMAGE }}" \
               --force
           done
           
