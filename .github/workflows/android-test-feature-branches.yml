@@ -65,12 +65,13 @@ jobs:
       - name: Calculate short commit SHA
         id: get_sha
         run: |
-         echo "short_sha=$(git rev-parse --short ${{ github.sha }})" >> $GITHUB_OUTPUT
-         echo "Short commit SHA: ${{ steps.get_sha.outputs.short_sha }}"
-         if [ -z "${{ steps.get_sha.outputs.short_sha }}" ]; then
-           echo "Error: Short commit SHA is empty."
-           exit 1
-         fi
+          short_sha=$(git rev-parse --short ${{ github.sha }})
+          echo "short_sha=$short_sha" >> $GITHUB_OUTPUT
+          echo "Short commit SHA: $short_sha"
+          if [ -z "$short_sha" ]; then
+            echo "Error: Short commit SHA is empty."
+            exit 1
+          fi
 
   android_tests:
     name: Android Tests
