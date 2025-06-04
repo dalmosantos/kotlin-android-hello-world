@@ -50,7 +50,7 @@ on:
       - 'feature/*'
 
 jobs:
- android_tests:
+  android_tests:
     name: Android Tests
     uses: ./.github/workflows/android-multi-version-test.yml
     with:
@@ -59,7 +59,7 @@ jobs:
       pixel: ${{ inputs.pixel }}
       runner_type: ${{ inputs.runner_type }}
       architecture: ${{ inputs.architecture }}
-      system_image: "system-images;android-${{ inputs.api_level }};google_apis_playstore;${{ inputs.architecture }}"
+      system_image: system-images;android-${{ inputs.api_level }};google_apis_playstore;${{ inputs.architecture }}
       java_version: ${{ inputs.java_version }}
       gradle_version: ${{ inputs.gradle_version }}
       timezone: ${{ inputs.timezone }}
@@ -69,4 +69,4 @@ jobs:
       timeout-minutes: ${{ inputs.timeout_minutes }}
       emulator_count: ${{ inputs.emulator_count }}
       sequential_boot: ${{ inputs.sequential_boot }}
-      commit_hash: ${{ github.sha }} 
+      commit_hash: ${{ github.sha }}
