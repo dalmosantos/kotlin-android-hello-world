@@ -82,7 +82,7 @@ jobs:
         include:
           - dummy: value
     timeout-minutes: ${{ inputs.timeout-minutes }}
-    name: ${{ inputs.commit_hash_short != '' && format('Test Android {0} (API {1}) - Pixel {2} - {3}', inputs.android_version, inputs.api_level, inputs.pixel, inputs.commit_hash_short) || format('Test Android {0} (API {1}) - Pixel {2}', inputs.android_version, inputs.api_level, inputs.pixel) }}
+    name: ${{ inputs.commit_hash != '' && format('Test Android {0} (API {1}) - Pixel {2} - {3}', inputs.android_version, inputs.api_level, inputs.pixel, inputs.commit_hash) || format('Test Android {0} (API {1}) - Pixel {2}', inputs.android_version, inputs.api_level, inputs.pixel) }}
 
     env:
       ANDROID_HOME: ${{ github.workspace }}/android-sdk

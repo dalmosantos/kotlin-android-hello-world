@@ -1,72 +1,26 @@
 name: CI - Feature Branches
 
 on:
-  workflow_call:
-    inputs:
-      android_version:
-        type: string
-        default: '13'
-      api_level:
-        type: number
-        default: 33
-      pixel:
-        type: string
-        default: '7a'
-      runner_type:
-        type: string
-        default: 'macos-13'
-      architecture:
-        type: string
-        default: 'x86_64'
-      java_version:
-        type: string
-        default: '17'
-      gradle_version:
-        type: string
-        default: '8.12.1'
-      timezone:
-        type: string
-        default: 'America/Sao_Paulo'
-      language:
-        type: string
-        default: 'en_US.UTF-8'
-      locale:
-        type: string
-        default: 'en_US.UTF-8'
-      max_parallel:
-        type: number
-        default: 1
-      timeout_minutes:
-        type: number
-        default: 45
-      emulator_count:
-        type: number
-        default: 2
-      sequential_boot:
-        type: boolean
-        default: true
   push:
     branches:
       - 'feature/*'
 
 jobs:
   android_tests:
-    name: Android Tests
     uses: ./.github/workflows/android-multi-version-test.yml
     with:
-      android_version: ${{ inputs.android_version }}
-      api_level: ${{ inputs.api_level }}
-      pixel: ${{ inputs.pixel }}
-      runner_type: ${{ inputs.runner_type }}
-      architecture: ${{ inputs.architecture }}
-      system_image: system-images;android-${{ inputs.api_level }};google_apis_playstore;${{ inputs.architecture }}
-      java_version: ${{ inputs.java_version }}
-      gradle_version: ${{ inputs.gradle_version }}
-      timezone: ${{ inputs.timezone }}
-      language: ${{ inputs.language }}
-      locale: ${{ inputs.locale }}
-      max_parallel: ${{ inputs.max_parallel }}
-      timeout-minutes: ${{ inputs.timeout_minutes }}
-      emulator_count: ${{ inputs.emulator_count }}
-      sequential_boot: ${{ inputs.sequential_boot }}
+      android_version: 13
+      api_level: 33
+      pixel: 7a
+      system_image: "system-images;android-33;google_apis;x86_64"
+      runner_type: macos-13
+      architecture: x86_64
+      java_version: 17
+      gradle_version: 8.12.1
+      timezone: America/Sao_Paulo
+      language: en_US.UTF-8
+      locale: en_US.UTF-8
+      max_parallel: 1
+      timeout-minutes: 45
       commit_hash: ${{ github.sha }}
+      emulator_count: 2
