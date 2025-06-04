@@ -180,12 +180,19 @@ jobs:
             "platforms;android-${{ inputs.api_level }}" \
             "system-images;android-${{ inputs.api_level }};${{ env.SYSTEM_IMAGE }}" \
             "emulator"
-
+            
       - name: Build project
         run: |
           set -euo pipefail
-          echo "Building project with Gradle..."
-          ./gradlew build --build-cache --parallel -Pandroid.buildToolsVersion=${{ env.BUILD_TOOLS_VERSION }}
+          echo "Building project with Gradle .."
+          ./gradlew assembleDebug \
+            --build-cache \
+            --parallel \
+            --configuration-cache \
+            --max-workers=$(nproc) \
+            -Dorg.gradle.daemon=true \
+            -Dorg.gradle.configureondemand=true \
+            -Pandroid.buildToolsVersion=${{ env.BUILD_TOOLS_VERSION }}
 
       - name: Create AVDs
         run: |
@@ -271,11 +278,11 @@ jobs:
           echo "EMULATOR_PORTS_LIST=${EMULATOR_PORTS_ARRAY[*]}" >> $GITHUB_ENV
 
       - name: Wait for emulators to boot
-        timeout-minutes: 20
+        timeout-minutes: 15
         run: |
           set -euo pipefail
-          MAX_ATTEMPTS=45
-          SLEEP_SECONDS=15
+          MAX_ATTEMPTS=50
+          SLEEP_SECONDS=20
           BOOT_COMPLETE_PROP="sys.boot_completed"
           LAUNCHER_PROP="service.bootanim.exit"
           
