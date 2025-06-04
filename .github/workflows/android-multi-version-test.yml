@@ -156,18 +156,7 @@ jobs:
 
       - name: Set system image based on architecture
         run: |
-          arch=$(uname -m)
-          api=${{ inputs.api_level }}
-          if [[ "$arch" == "x86_64" && "$api" -lt 30 ]]; then
-            echo "SYSTEM_IMAGE=google_apis;x86_64" >> $GITHUB_ENV
-          elif [[ "$arch" == "x86_64" ]]; then
-            echo "SYSTEM_IMAGE=google_apis_playstore;x86_64" >> $GITHUB_ENV
-          elif [[ "$arch" == "arm64" || "$arch" == "aarch64" ]]; then
-            echo "SYSTEM_IMAGE=google_apis_playstore;arm64-v8a" >> $GITHUB_ENV
-          else
-            echo "Unsupported architecture: $arch"
-            exit 1
-          fi
+          echo "SYSTEM_IMAGE=${{ inputs.system_image }}" >> $GITHUB_ENV
 
       - name: Accept licenses and install SDK components
         run: |
