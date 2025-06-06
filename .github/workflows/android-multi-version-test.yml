@@ -219,7 +219,7 @@ jobs:
           echo "📝 Accepting licenses and installing SDK components..."
           
           # Accept all licenses automatically
-          yes | sdkmanager --licenses >/dev/null 2>&1
+          printf "y\ny\ny\ny\ny\ny\ny\ny\n" | sdkmanager --licenses >/dev/null 2>&1
           
           # Install required components with error handling
           sdkmanager --update --channel=0
