@@ -9,9 +9,9 @@ jobs:
   android_tests:
     uses: ./.github/workflows/android-multi-version-test.yml
     with:
-      android_version: 13
+      android_version: 14
       api_level: 33
-      pixel: 7a
+      pixel: 6a
       system_image: "system-images;android-33;google_apis;x86_64"
       runner_type: macos-13
       architecture: x86_64

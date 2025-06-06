@@ -272,7 +272,7 @@ jobs:
           echo "EMULATOR_PORTS_LIST=${EMULATOR_PORTS_ARRAY[*]}" >> $GITHUB_ENV
 
       - name: Wait for emulators to boot
-        timeout-minutes: 15
+        timeout-minutes: 20
         run: |
           set -euo pipefail
           MAX_ATTEMPTS=50
