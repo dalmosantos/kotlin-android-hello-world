@@ -436,12 +436,21 @@ jobs:
           
           sleep 10
 
+
       - name: Run instrumentation tests
         run: |
           # Convert space-separated string to array
           read -ra EMULATOR_PORTS_ARRAY <<< "$EMULATOR_PORTS_LIST"
           
-          # If multiple emulators, run tests sequentially to avoid resource conflicts
+          # Flags extras para acelerar o Gradle
+          GRADLE_OPTS="-Dorg.gradle.daemon=true \
+            -Dorg.gradle.parallel=true \
+            -Dorg.gradle.configureondemand=true \
+            -Dorg.gradle.caching=true \
+            -Dkotlin.incremental=true \
+            -Dorg.gradle.jvmargs='-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8'"
+
+          # Se múltiplos emuladores, roda sequencialmente
           if [[ ${#EMULATOR_PORTS_ARRAY[@]} -gt 1 ]]; then
             echo "Running tests sequentially on ${#EMULATOR_PORTS_ARRAY[@]} emulators..."
             for port in "${EMULATOR_PORTS_ARRAY[@]}"; do
@@ -453,6 +462,7 @@ jobs:
                 -Dandroid.testInstrumentationRunnerArguments.deviceSerial=emulator-$port \
                 -Dorg.gradle.internal.http.socketTimeout=180000 \
                 -Dorg.gradle.internal.http.connectionTimeout=120000 \
+                $GRADLE_OPTS \
                 --info
             done
           else
@@ -463,6 +473,7 @@ jobs:
               -Pandroid.experimental.androidTest.useUnifiedTestPlatform=true \
               -Dorg.gradle.internal.http.socketTimeout=180000 \
               -Dorg.gradle.internal.http.connectionTimeout=120000 \
+              $GRADLE_OPTS \
               --info
           fi
 
