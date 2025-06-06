@@ -23,4 +23,5 @@ jobs:
       max_parallel: 1
       timeout-minutes: 45
       commit_hash: ${{ github.sha }}
-      emulator_count: 2
+      emulator_count: 1
+      sequential_boot: true
