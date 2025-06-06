@@ -234,10 +234,10 @@ jobs:
                 -camera-back none -camera-front none \
                 -gpu swiftshader_indirect \
                 -memory $MEMORY_SIZE \
-                -partition-size 8192 \
-                -cache-size 4096 \
+                -partition-size 4096 \
+                -cache-size 2048 \
                 -accel on \
-                -qemu -smp 4 &
+                -qemu -smp 2 &
               
               # Wait a bit before starting the next one to reduce resource contention
               if [[ $i -lt $((${#EMULATOR_PORTS_ARRAY[@]} - 1)) ]]; then
@@ -260,10 +260,10 @@ jobs:
                 -camera-back none -camera-front none \
                 -gpu swiftshader_indirect \
                 -memory $MEMORY_SIZE \
-                -partition-size 8192 \
-                -cache-size 4096 \
+                -partition-size 4096 \
+                -cache-size 2048 \
                 -accel on \
-                -qemu -smp 4 > /dev/null 2>&1 &
+                -qemu -smp 2 > /dev/null 2>&1 &
             done
             sleep 30
           fi
