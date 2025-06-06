@@ -13,7 +13,7 @@ jobs:
       api_level: 33
       pixel: 6a
       system_image: "system-images;android-33;google_apis;x86_64"
-      runner_type: macos-14
+      runner_type: macos-13
       architecture: x86_64
       java_version: 17
       gradle_version: 8.12.1
