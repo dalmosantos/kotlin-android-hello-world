@@ -236,7 +236,7 @@ jobs:
             echo "Starting emulators sequentially..."
             for i in "${!EMULATOR_PORTS_ARRAY[@]}"; do
               port=${EMULATOR_PORTS_ARRAY[$i]}
-              avd_name="test$i"
+              avd_name="avd_name="test_${{ inputs.pixel }}_${{ inputs.api_level }}_$i""
               echo "====Starting emulator $avd_name on port $port===="            
               $ANDROID_HOME/emulator/emulator -avd "$avd_name" -port "$port" $EMULATOR_COMMON_OPTS \
                 -qemu -smp 2 &
@@ -248,7 +248,7 @@ jobs:
             echo "Starting all emulators simultaneously..."
             for i in "${!EMULATOR_PORTS_ARRAY[@]}"; do
               port=${EMULATOR_PORTS_ARRAY[$i]}
-              avd_name="test$i"
+              avd_name="test_${{ inputs.pixel }}_${{ inputs.api_level }}_$i""
               echo "Starting emulator $avd_name on port $port"     
               $ANDROID_HOME/emulator/emulator -avd "$avd_name" -port "$port" $EMULATOR_COMMON_OPTS \
                 -qemu -smp 2 &
