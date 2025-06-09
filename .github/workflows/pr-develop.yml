@@ -1,3 +1,4 @@
+
 name: CI - Develop Branch
 
 on:
@@ -6,55 +7,58 @@ on:
       - develop
 
 jobs:
-  android_tests_versions_7_to_10:
+  android_tests:
     strategy:
       matrix:
-        android-version:
-          - { api: 24, name: "7.0", pixel: "xl" }
-          - { api: 26, name: "8.0", pixel: "2" }
-          - { api: 28, name: "9", pixel: "3a" }
-          - { api: 29, name: "10", pixel: "4a" }
-    uses: ./.github/workflows/android-multi-version-test.yml
-    with:
-      android_version: ${{ matrix.android-version.name }}
-      api_level: ${{ matrix.android-version.api }}
-      pixel: ${{ matrix.android-version.pixel }}
-      system_image: "system-images;android-${{ matrix.android-version.api }};google_apis;x86_64"
-      runner_type: macos-13
-      architecture: x86_64
-      java_version: 17
-      gradle_version: 8.12.1
-      timezone: America/Sao_Paulo
-      language: en_US.UTF-8
-      locale: en_US.UTF-8
-      max_parallel: 2
-      timeout-minutes: 60
-      commit_hash: ""
-      emulator_count: 2
+        group:
+          - name: "7-8"
+            versions:
+              - { api: 24, name: "7.0", pixel: "xl" }
+              - { api: 26, name: "8.0", pixel: "2" }
+            system_image_prefix: "google_apis"
+          - name: "9-10"
+            versions:
+              - { api: 28, name: "9", pixel: "3a" }
+              - { api: 29, name: "10", pixel: "4a" }
+            system_image_prefix: "google_apis"
+          - name: "11-12"
+            versions:
+              - { api: 30, name: "11", pixel: "5" }
+              - { api: 31, name: "12", pixel: "6a" }
+            system_image_prefix: "google_apis_playstore"
+          - name: "13-14"
+            versions:
+              - { api: 33, name: "13", pixel: "6a" }
+              - { api: 34, name: "14", pixel: "7a" }
+            system_image_prefix: "google_apis_playstore"
+          - name: "15"
+            versions:
+              - { api: 35, name: "15", pixel: "7a" }
+            system_image_prefix: "google_apis_playstore"
+    name: "Android Tests (${{ matrix.group.name }})"
+    runs-on: macos-13
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-  android_tests_11_to_15:
-    strategy:
-      matrix:
-        android-version:
-          - { api: 30, name: "11", pixel: "5" }
-          - { api: 31, name: "12", pixel: "6a" }
-          - { api: 33, name: "13", pixel: "6a" }
-          - { api: 34, name: "14", pixel: "7a" }
-          - { api: 35, name: "15", pixel: "7a" }
-    uses: ./.github/workflows/android-multi-version-test.yml
-    with:
-      android_version: ${{ matrix.android-version.name }}
-      api_level: ${{ matrix.android-version.api }}
-      pixel: ${{ matrix.android-version.pixel }}
-      system_image: "system-images;android-${{ matrix.android-version.api }};google_apis_playstore;x86_64"
-      runner_type: macos-13
-      architecture: x86_64
-      java_version: 17
-      gradle_version: 8.12.1
-      timezone: America/Sao_Paulo
-      language: en_US.UTF-8
-      locale: en_US.UTF-8
-      max_parallel: 2
-      timeout-minutes: 60
-      commit_hash: ""
-      emulator_count: 2
+      - name: Run tests for Android ${{ matrix.group.name }}
+        uses: ./.github/workflows/android-multi-version-test.yml
+        with:
+          android_version: ${{ matrix.version.name }}
+          api_level: ${{ matrix.version.api }}
+          pixel: ${{ matrix.version.pixel }}
+          system_image: "system-images;android-${{ matrix.version.api }};${{ matrix.group.system_image_prefix }};x86_64"
+          runner_type: macos-13
+          architecture: x86_64
+          java_version: 17
+          gradle_version: "8.12.1"
+          timezone: "America/Sao_Paulo"
+          language: "en_US.UTF-8"
+          locale: "en_US.UTF-8"
+          max_parallel: ${{ matrix.group.name == '15' && 1 || 2 }}
+          timeout-minutes: 60
+          commit_hash: ""
+          emulator_count: ${{ matrix.group.name == '15' && 1 || 2 }}
+        env:
+          GROUP_NAME: ${{ matrix.group.name }}
+        continue-on-error: false
