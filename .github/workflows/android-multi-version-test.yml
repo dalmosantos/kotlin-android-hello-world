@@ -93,7 +93,7 @@ jobs:
       LANG: ${{ inputs.language }}
       LC_ALL: ${{ inputs.locale }}
       EMULATOR_COUNT: ${{ inputs.emulator_count }}
-      MEMORY_SIZE: ${{ inputs.api_level <= 26 && '2048' || '3072' }}
+      MEMORY_SIZE: ${{ inputs.api_level <= 26 && '2048' || '3584' }}
       SEQUENTIAL_BOOT: ${{ inputs.sequential_boot }}
 
     defaults:
@@ -227,8 +227,8 @@ jobs:
             -qt-hide-window -grpc-use-token -idle-grpc-timeout \
             -no-jni -no-snapshot-load -no-snapshot-save \
             -memory $MEMORY_SIZE \
-            -partition-size 4096 \
-            -cache-size 2048 \
+            -partition-size 2048 \
+            -cache-size 1024 \
             -accel on"
 
           if [[ "$SEQUENTIAL_BOOT" == "true" ]]; then
@@ -236,9 +236,7 @@ jobs:
             for i in "${!EMULATOR_PORTS_ARRAY[@]}"; do
               port=${EMULATOR_PORTS_ARRAY[$i]}
               avd_name="test$i"
-              echo "Starting emulator $avd_name on port $port"
-              
-              # shellcheck disable=SC2086
+              echo "====Starting emulator $avd_name on port $port===="            
               $ANDROID_HOME/emulator/emulator -avd "$avd_name" -port "$port" $EMULATOR_COMMON_OPTS \
                 -qemu -smp 2 &
               
@@ -254,11 +252,8 @@ jobs:
               $ANDROID_HOME/emulator/emulator -avd "$avd_name" -port "$port" $EMULATOR_COMMON_OPTS \
                 -qemu -smp 2 &
             done
-              sleep_time=$(( 30 - 10 * i ))
-              if (( sleep_time > 0 )); then
-                echo "Waiting $sleep_time seconds before starting next emulator..."
-                sleep $sleep_time
-              fi
+            echo "All emulators have been started. Please wait for full boot in the next step."
+            sleep 60
           fi
           
           # Export ports list for subsequent steps
