@@ -210,42 +210,33 @@ jobs:
         run: |
           set -euo pipefail
           
-          # Check acceleration support and log details
-          accel_output=$($ANDROID_HOME/emulator/emulator -accel-check || true)
-          echo "Acceleration check output: $accel_output"
-
+          # Check acceleration support
+          $ANDROID_HOME/emulator/emulator -accel-check || true
           adb start-server
           
           # Generate emulator ports
           EMULATOR_PORTS_ARRAY=($(seq 5554 2 $((5554 + (EMULATOR_COUNT - 1) * 2))))
           
+          # Common emulator options
+          EMULATOR_OPTS="-no-snapshot -no-boot-anim -no-audio -no-passive-gps -no-location-ui skip-adb-auth  \
+            -qt-hide-window -grpc-use-token -idle-grpc-timeout \
+            -timezone America/Sao_Paulo -netdelay none -netspeed full -camera-back none \
+            -camera-front none -gpu swiftshader_indirect -memory $MEMORY_SIZE \
+            -partition-size 4096 -cache-size 2048 -accel on \
+            -no-jni -no-snapshot-load -no-snapshot-save"
+          
           if [[ "$SEQUENTIAL_BOOT" == "true" ]]; then
-            echo "Starting emulators sequentially for better stability..."
+            echo "Starting emulators sequentially..."
             for i in "${!EMULATOR_PORTS_ARRAY[@]}"; do
               port=${EMULATOR_PORTS_ARRAY[$i]}
               avd_name="test$i"
               echo "Starting emulator $avd_name on port $port"
               
-              $ANDROID_HOME/emulator/emulator -avd "$avd_name" \
-                -port $port \
-                -no-snapshot -no-boot-anim -no-audio \
-                -no-passive-gps -no-location-ui \
-                -timezone America/Sao_Paulo \
-                -netdelay none -netspeed full \
-                -camera-back none -camera-front none \
-                -gpu swiftshader_indirect \
-                -memory $MEMORY_SIZE \
-                -partition-size 4096 \
-                -cache-size 2048 \
-                -accel on \
-                -qemu -smp 1 > /dev/null 2>&1 &
-
+              $ANDROID_HOME/emulator/emulator -avd "$avd_name" -port $port $EMULATOR_OPTS \
+                -qemu -smp 2 > /dev/null 2>&1 &
               
-              # Wait a bit before starting the next one to reduce resource contention
-              if [[ $i -lt $((${#EMULATOR_PORTS_ARRAY[@]} - 1)) ]]; then
-                echo "Waiting 60 seconds before starting next emulator..."
-                sleep 60
-              fi
+              # Wait before starting next emulator
+              [[ $i -lt $((${#EMULATOR_PORTS_ARRAY[@]} - 1)) ]] && sleep 60
             done
           else
             echo "Starting all emulators simultaneously..."
@@ -254,18 +245,7 @@ jobs:
               avd_name="test$i"
               echo "Starting emulator $avd_name on port $port"
               
-              $ANDROID_HOME/emulator/emulator -avd "$avd_name" \
-                -port $port \
-                -timezone America/Sao_Paulo \
-                -no-snapshot -no-audio -no-boot-anim \
-                -no-passive-gps -no-location-ui \
-                -netdelay none -netspeed full \
-                -camera-back none -camera-front none \
-                -gpu swiftshader_indirect \
-                -memory $MEMORY_SIZE \
-                -partition-size 4096 \
-                -cache-size 2048 \
-                -accel on \
+              $ANDROID_HOME/emulator/emulator -avd "$avd_name" -port $port $EMULATOR_OPTS \
                 -qemu -smp 2 > /dev/null 2>&1 &
             done
             sleep 30
@@ -448,12 +428,11 @@ jobs:
             "-Dorg.gradle.configureondemand=true"
             "-Dorg.gradle.caching=true"
             "-Dkotlin.incremental=true"
-            "-Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8"
+            "-Dorg.gradle.jvmargs='-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8'"
             "-Dorg.gradle.internal.http.socketTimeout=180000"
             "-Dorg.gradle.internal.http.connectionTimeout=120000"
             "--info"
           )
-          
           if [[ ${#EMULATOR_PORTS_ARRAY[@]} -gt 1 ]]; then
             echo "Running tests sequentially on ${#EMULATOR_PORTS_ARRAY[@]} emulators..."
             for port in "${EMULATOR_PORTS_ARRAY[@]}"; do
