@@ -228,15 +228,17 @@ jobs:
               
               $ANDROID_HOME/emulator/emulator -avd "$avd_name" \
                 -port $port \
-                -no-snapshot -no-boot-anim -no-audio -no-window -read-only \
+                -no-snapshot -no-boot-anim -no-audio \
+                -no-passive-gps -no-location-ui \
+                -timezone America/Sao_Paulo \
                 -netdelay none -netspeed full \
                 -camera-back none -camera-front none \
                 -gpu swiftshader_indirect \
                 -memory $MEMORY_SIZE \
-                -partition-size 2048 \
-                -cache-size 512 \
+                -partition-size 4096 \
+                -cache-size 2048 \
                 -accel on \
-                -qemu -smp 1 &
+                -qemu -smp 1 > /dev/null 2>&1 &
 
               
               # Wait a bit before starting the next one to reduce resource contention
@@ -256,6 +258,7 @@ jobs:
                 -port $port \
                 -timezone America/Sao_Paulo \
                 -no-snapshot -no-audio -no-boot-anim \
+                -no-passive-gps -no-location-ui \
                 -netdelay none -netspeed full \
                 -camera-back none -camera-front none \
                 -gpu swiftshader_indirect \
