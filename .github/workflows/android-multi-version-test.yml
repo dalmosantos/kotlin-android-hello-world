@@ -92,7 +92,7 @@ jobs:
       LANG: ${{ inputs.language }}
       LC_ALL: ${{ inputs.locale }}
       EMULATOR_COUNT: ${{ inputs.emulator_count }}
-      MEMORY_SIZE: ${{ inputs.api_level <= 26 && '2048' || '3584' }}
+      MEMORY_SIZE: ${{ inputs.api_level <= 26 && '2048' || '3072' }}
       SEQUENTIAL_BOOT: ${{ inputs.sequential_boot }}
 
     defaults:
@@ -217,6 +217,23 @@ jobs:
           # Generate emulator ports
           EMULATOR_PORTS_ARRAY=($(seq 5554 2 $((5554 + (EMULATOR_COUNT - 1) * 2))))
                    
+          # Common emulator options
+          # Note: $TZ is used for timezone, which is set from inputs.timezone via the job's env block.
+          # -verbose is included for detailed logs; consider removing if too noisy for simultaneous boot.
+          EMULATOR_COMMON_OPTS="-timezone \"$TZ\" \
+            -no-snapshot -no-audio -no-boot-anim \
+            -netdelay none -netspeed full \
+            -camera-back none -camera-front none \
+            -no-passive-gps -no-location-ui skip-adb-auth \
+            -qt-hide-window -grpc-use-token -idle-grpc-timeout \
+            -no-jni -no-snapshot-load -no-snapshot-save \
+            -gpu swiftshader_indirect \
+            -memory $MEMORY_SIZE \
+            -partition-size 4096 \
+            -cache-size 2048 \
+            -accel on \
+            -verbose"
+
           if [[ "$SEQUENTIAL_BOOT" == "true" ]]; then
             echo "Starting emulators sequentially..."
             for i in "${!EMULATOR_PORTS_ARRAY[@]}"; do
@@ -224,21 +241,8 @@ jobs:
               avd_name="test$i"
               echo "Starting emulator $avd_name on port $port"
               
-              $ANDROID_HOME/emulator/emulator -avd "$avd_name"
-                -port $port \                 
-                -timezone America/Sao_Paulo \
-                -no-snapshot -no-audio -no-boot-anim \
-                -netdelay none -netspeed full \
-                -camera-back none -camera-front none \
-                -no-passive-gps -no-location-ui skip-adb-auth  \
-                -qt-hide-window -grpc-use-token -idle-grpc-timeout \
-                -no-jni -no-snapshot-load -no-snapshot-save \
-                -gpu swiftshader_indirect \
-                -memory $MEMORY_SIZE \
-                -partition-size 4096 \
-                -cache-size 2048 \
-                -accel on \
-                -verbose \
+              # shellcheck disable=SC2086
+              $ANDROID_HOME/emulator/emulator -avd "$avd_name" -port "$port" $EMULATOR_COMMON_OPTS \
                 -qemu -smp 2 &
               
               # Wait before starting next emulator
@@ -251,7 +255,8 @@ jobs:
               avd_name="test$i"
               echo "Starting emulator $avd_name on port $port"
               
-              $ANDROID_HOME/emulator/emulator -avd "$avd_name" -port $port $EMULATOR_OPTS \
+              # shellcheck disable=SC2086
+              $ANDROID_HOME/emulator/emulator -avd "$avd_name" -port "$port" $EMULATOR_COMMON_OPTS \
                 -qemu -smp 2 &
             done
             sleep 30
