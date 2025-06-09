@@ -199,7 +199,7 @@ jobs:
             port=${EMULATOR_PORTS_ARRAY[$i]}
             avd_name="test_${{ inputs.pixel }}_${{ inputs.api_level }}_$i"
             echo "Creating AVD: $avd_name for port: $port"
-            echo "no" | avdmanager create avd -n "$avd_name" \
+            echo "no" | avdmanager create avd -n $avd_name \
               -d "pixel_${{ inputs.pixel }}" \
               -k "${{ env.SYSTEM_IMAGE }}" \
               --force
@@ -236,9 +236,9 @@ jobs:
             echo "Starting emulators sequentially..."
             for i in "${!EMULATOR_PORTS_ARRAY[@]}"; do
               port=${EMULATOR_PORTS_ARRAY[$i]}
-              avd_name="avd_name="test_${{ inputs.pixel }}_${{ inputs.api_level }}_$i""
+              avd_name="test_${{ inputs.pixel }}_${{ inputs.api_level }}_$i"
               echo "====Starting emulator $avd_name on port $port===="            
-              $ANDROID_HOME/emulator/emulator -avd "$avd_name" -port "$port" $EMULATOR_COMMON_OPTS \
+              $ANDROID_HOME/emulator/emulator -avd $avd_name -port "$port" $EMULATOR_COMMON_OPTS \
                 -qemu -smp 2 &
               
               # Wait before starting next emulator
@@ -248,9 +248,9 @@ jobs:
             echo "Starting all emulators simultaneously..."
             for i in "${!EMULATOR_PORTS_ARRAY[@]}"; do
               port=${EMULATOR_PORTS_ARRAY[$i]}
-              avd_name="test_${{ inputs.pixel }}_${{ inputs.api_level }}_$i""
-              echo "Starting emulator $avd_name on port $port"     
-              $ANDROID_HOME/emulator/emulator -avd "$avd_name" -port "$port" $EMULATOR_COMMON_OPTS \
+              avd_name="test_${{ inputs.pixel }}_${{ inputs.api_level }}_$i"
+              echo "====Starting emulator $avd_name on port $port===="     
+              $ANDROID_HOME/emulator/emulator -avd $avd_name -port "$port" $EMULATOR_COMMON_OPTS \
                 -qemu -smp 2 &
             done
             echo "All emulators have been started. Please wait for full boot in the next step."
