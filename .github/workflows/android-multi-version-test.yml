@@ -223,7 +223,8 @@ jobs:
             -timezone America/Sao_Paulo -netdelay none -netspeed full -camera-back none \
             -camera-front none -gpu swiftshader_indirect -memory $MEMORY_SIZE \
             -partition-size 4096 -cache-size 2048 -accel on \
-            -no-jni -no-snapshot-load -no-snapshot-save"
+            -no-jni -no-snapshot-load -no-snapshot-save \
+            -verbose"
           
           if [[ "$SEQUENTIAL_BOOT" == "true" ]]; then
             echo "Starting emulators sequentially..."
@@ -246,7 +247,6 @@ jobs:
               echo "Starting emulator $avd_name on port $port"
               
               $ANDROID_HOME/emulator/emulator -avd "$avd_name" -port $port $EMULATOR_OPTS \
-                # -qemu -smp 2 > /dev/null 2>&1 &
                 -qemu -smp 2 &
             done
             sleep 30
