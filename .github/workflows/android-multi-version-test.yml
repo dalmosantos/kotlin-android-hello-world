@@ -92,7 +92,7 @@ jobs:
       LANG: ${{ inputs.language }}
       LC_ALL: ${{ inputs.locale }}
       EMULATOR_COUNT: ${{ inputs.emulator_count }}
-      MEMORY_SIZE: ${{ inputs.api_level <= 26 && '2048' || '3072' }}
+      MEMORY_SIZE: ${{ inputs.api_level <= 26 && '2048' || '3584' }}
       SEQUENTIAL_BOOT: ${{ inputs.sequential_boot }}
 
     defaults:
@@ -278,65 +278,69 @@ jobs:
         timeout-minutes: 20
         run: |
           set -euo pipefail
-          MAX_ATTEMPTS=50
+
+          MAX_ATTEMPTS=30
           SLEEP_SECONDS=20
-          
+          BOOT_COMPLETE_PROP="sys.boot_completed"
+
           read -ra EMULATOR_PORTS_ARRAY <<< "$EMULATOR_PORTS_LIST"
           echo "Waiting for ${#EMULATOR_PORTS_ARRAY[@]} emulator(s) to boot..."
-          
+
           for port in "${EMULATOR_PORTS_ARRAY[@]}"; do
-            echo "=== Waiting for emulator-$port to boot ==="
-            n=0
-            
-            until [[ $n -ge $MAX_ATTEMPTS ]]; do
-              boot_completed=$(adb -s emulator-$port shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || echo "0")
-              boot_anim_exit=$(adb -s emulator-$port shell getprop service.bootanim.exit 2>/dev/null | tr -d '\r' || echo "0")
-              
-              echo "Emulator $port - Attempt $((n+1))/$MAX_ATTEMPTS: boot_completed=$boot_completed, boot_anim_exit=$boot_anim_exit"
-              
-              # Consider boot complete if boot_completed=1 AND either boot_anim_exit=1 OR (boot_anim_exit is empty AND n>=10)
-              if [[ "$boot_completed" == "1" && ( "$boot_anim_exit" == "1" || ( -z "$boot_anim_exit" && $n -ge 10 ) ) ]]; then
-                echo "✅ Emulator $port is ready!"
-                break
-              fi
-              
-              sleep $SLEEP_SECONDS
-              n=$((n+1))
-            done
-            
-            # Check if boot failed
-            if [[ $n -ge $MAX_ATTEMPTS ]]; then
-              echo "❌ Emulator on port $port failed to boot within timeout"
-              echo "Final state: boot_completed=$boot_completed, boot_anim_exit=$boot_anim_exit"
-              
-              # Collect diagnostic information
-              echo "=== Diagnostic Information ==="
-              adb -s emulator-$port shell getprop ro.boot.qemu.cpu 2>/dev/null || echo "Failed to get CPU info"
-              adb -s emulator-$port shell getprop ro.kernel.qemu 2>/dev/null || echo "Failed to get kernel info"
-              adb -s emulator-$port shell ps | head -20 2>/dev/null || echo "Failed to get process list"
-              adb -s emulator-$port shell logcat -d | tail -100 || echo "Failed to get logcat"
+            LOGCAT_FILE="${ARTIFACTS_BASE_PATH}/boot-logcat-emulator-$port.txt"
+            mkdir -p "$(dirname "$LOGCAT_FILE")"
+            touch "$LOGCAT_FILE"
+
+            # Kill existing logcat processes for this port
+            pkill -f "adb -s emulator-$port logcat" || true
+
+            # Start capturing logcat output for this emulator
+            adb -s emulator-$port logcat -G 16M
+            adb -s emulator-$port logcat -v time *:V > "$LOGCAT_FILE" &
+            LOGCAT_PID=$!
+
+            wait_for_emulator() {
+              for ((i=1; i<=MAX_ATTEMPTS; i++)); do
+                echo "ADB State: $(adb -s emulator-$port get-state)"
+                echo "Boot Property: $(adb -s emulator-$port shell getprop $BOOT_COMPLETE_PROP)"
+                if adb -s emulator-$port get-state 2>/dev/null | grep -q "device"; then
+                  if adb -s emulator-$port shell getprop "$BOOT_COMPLETE_PROP" 2>/dev/null | grep -q 1; then
+                    echo "✅ Emulator-$port booted in $((i * SLEEP_SECONDS)) seconds"
+                    return 0
+                  fi
+                fi
+                echo "⏳ Waiting for emulator-$port... (Attempt $i/$MAX_ATTEMPTS)"
+                sleep $SLEEP_SECONDS
+              done
+              return 1
+            }
+
+            if wait_for_emulator; then
+              echo "Emulator-$port booted, sending keyevent to unlock..."
+              RETRIES=0
+              MAX_RETRIES=5
+              until adb -s emulator-$port shell input keyevent 82 2>/dev/null || [ $RETRIES -eq $MAX_RETRIES ]; do
+                echo "🔄 Keyevent input failed, retrying..."
+                sleep 3
+                RETRIES=$((RETRIES+1))
+              done
+              android_version=$(adb -s emulator-$port shell getprop ro.build.version.release 2>/dev/null || echo "unknown")
+              api_level=$(adb -s emulator-$port shell getprop ro.build.version.sdk 2>/dev/null || echo "unknown")
+              echo "# ----- 📱 Emulator $port Ready: Android $android_version (API $api_level) -----"
+            else
+              echo "❌ Emulator-$port failed to boot"
+              echo "🔍 Boot log (last 50 lines):"
+              tail -n 50 "$LOGCAT_FILE" | grep -i "error" || tail -n 50 "$LOGCAT_FILE"
+              kill $LOGCAT_PID || true
               exit 1
             fi
-            
-            # Force bootanim.exit if needed
-            [[ -z "$boot_anim_exit" ]] && adb -s emulator-$port shell setprop service.bootanim.exit 1 2>/dev/null || true
-            
-            # Unlock screen with retries
-            echo "Unlocking screen for emulator-$port..."
-            for ((i=0; i<5; i++)); do
-              if adb -s emulator-$port shell input keyevent 82 2>/dev/null; then
-                break
-              fi
-              echo "🔄 Keyevent retry $((i+1))/5"
-              sleep 2
-            done
-            
-            # Get device info
-            android_version=$(adb -s emulator-$port shell getprop ro.build.version.release 2>/dev/null || echo "unknown")
-            api_level=$(adb -s emulator-$port shell getprop ro.build.version.sdk 2>/dev/null || echo "unknown")
-            echo "# ----- 📱 Emulator $port Ready: Android $android_version (API $api_level) -----"
+
+            kill $LOGCAT_PID || true
+            echo "📄 Final boot logcat for emulator-$port (last 30 lines):"
+            tail -n 30 "$LOGCAT_FILE"
+            sleep 5
           done
-          
+
           echo "🎉 All emulators are ready!"
           sleep 10
 
@@ -444,7 +448,7 @@ jobs:
             "-Dorg.gradle.configureondemand=true"
             "-Dorg.gradle.caching=true"
             "-Dkotlin.incremental=true"
-            "-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8"
+            "-Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8"
             "-Dorg.gradle.internal.http.socketTimeout=180000"
             "-Dorg.gradle.internal.http.connectionTimeout=120000"
             "--info"
