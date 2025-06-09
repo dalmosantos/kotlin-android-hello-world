@@ -216,16 +216,7 @@ jobs:
           
           # Generate emulator ports
           EMULATOR_PORTS_ARRAY=($(seq 5554 2 $((5554 + (EMULATOR_COUNT - 1) * 2))))
-          
-          # Common emulator options
-          EMULATOR_OPTS="-no-snapshot -no-boot-anim -no-audio -no-passive-gps -no-location-ui skip-adb-auth  \
-            -qt-hide-window -grpc-use-token -idle-grpc-timeout \
-            -timezone America/Sao_Paulo -netdelay none -netspeed full -camera-back none \
-            -camera-front none -gpu swiftshader_indirect -memory $MEMORY_SIZE \
-            -partition-size 4096 -cache-size 2048 -accel on \
-            -no-jni -no-snapshot-load -no-snapshot-save \
-            -verbose"
-          
+                   
           if [[ "$SEQUENTIAL_BOOT" == "true" ]]; then
             echo "Starting emulators sequentially..."
             for i in "${!EMULATOR_PORTS_ARRAY[@]}"; do
@@ -233,8 +224,22 @@ jobs:
               avd_name="test$i"
               echo "Starting emulator $avd_name on port $port"
               
-              $ANDROID_HOME/emulator/emulator -avd "$avd_name" -port $port $EMULATOR_OPTS \
-                -qemu -smp 2 > /dev/null 2>&1 &
+              $ANDROID_HOME/emulator/emulator -avd "$avd_name"
+                -port $port \                 
+                -timezone America/Sao_Paulo \
+                -no-snapshot -no-audio -no-boot-anim \
+                -netdelay none -netspeed full \
+                -camera-back none -camera-front none \
+                -no-passive-gps -no-location-ui skip-adb-auth  \
+                -qt-hide-window -grpc-use-token -idle-grpc-timeout \
+                -no-jni -no-snapshot-load -no-snapshot-save \
+                -gpu swiftshader_indirect \
+                -memory $MEMORY_SIZE \
+                -partition-size 4096 \
+                -cache-size 2048 \
+                -accel on \
+                -verbose \
+                -qemu -smp 2 &
               
               # Wait before starting next emulator
               [[ $i -lt $((${#EMULATOR_PORTS_ARRAY[@]} - 1)) ]] && sleep 60
