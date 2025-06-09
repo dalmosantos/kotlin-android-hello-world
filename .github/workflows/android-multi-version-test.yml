@@ -219,21 +219,17 @@ jobs:
           EMULATOR_PORTS_ARRAY=($(seq 5554 2 $((5554 + (EMULATOR_COUNT - 1) * 2))))
                    
           # Common emulator options
-          # Note: $TZ is used for timezone, which is set from inputs.timezone via the job's env block.
-          # -verbose is included for detailed logs; consider removing if too noisy for simultaneous boot.
-          EMULATOR_COMMON_OPTS="-timezone \"$TZ\" \
+          EMULATOR_COMMON_OPTS="-no-window -gpu swiftshader -timezone \"$TZ\" \
             -no-snapshot -no-audio -no-boot-anim \
             -netdelay none -netspeed full \
             -camera-back none -camera-front none \
             -no-passive-gps -no-location-ui \
             -qt-hide-window -grpc-use-token -idle-grpc-timeout \
             -no-jni -no-snapshot-load -no-snapshot-save \
-            -gpu swiftshader_indirect \
             -memory $MEMORY_SIZE \
             -partition-size 4096 \
             -cache-size 2048 \
-            -accel on \
-            -verbose"
+            -accel on"
 
           if [[ "$SEQUENTIAL_BOOT" == "true" ]]; then
             echo "Starting emulators sequentially..."
@@ -439,8 +435,8 @@ jobs:
             "-Dorg.gradle.parallel=true"
             "-Dorg.gradle.configureondemand=true"
             "-Dorg.gradle.caching=true"
-            "-Dkotlin.incremental=true" # Ensure this is a valid Gradle property or JVM arg if intended for Kotlin daemon
-            "-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8"
+            "-Dkotlin.incremental=true" # Ensure this is a valid Gradle property or JVM arg if intended for Kotlin daemon. Assumes org.gradle.jvmargs are set in gradle.properties
+            # -Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8 # Now sourced from gradle.properties
             "-Dorg.gradle.internal.http.socketTimeout=180000"
             "-Dorg.gradle.internal.http.connectionTimeout=120000"
             "--info"
