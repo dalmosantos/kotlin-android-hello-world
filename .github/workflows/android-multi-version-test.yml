@@ -180,6 +180,7 @@ jobs:
           else
             MAX_WORKERS=$(sysctl -n hw.ncpu)
           fi
+          echo "Using $MAX_WORKERS workers for Gradle build"
           ./gradlew assembleDebug \
             --build-cache \
             --parallel \
@@ -196,7 +197,7 @@ jobs:
           
           for i in "${!EMULATOR_PORTS_ARRAY[@]}"; do
             port=${EMULATOR_PORTS_ARRAY[$i]}
-            avd_name="test$i"
+            avd_name="test_${{ inputs.pixel }}_${{ inputs.api_level }}_$i"
             echo "Creating AVD: $avd_name for port: $port"
             echo "no" | avdmanager create avd -n "$avd_name" \
               -d "pixel_${{ inputs.pixel }}" \
@@ -219,7 +220,7 @@ jobs:
           EMULATOR_PORTS_ARRAY=($(seq 5554 2 $((5554 + (EMULATOR_COUNT - 1) * 2))))
                    
           # Common emulator options
-          EMULATOR_COMMON_OPTS="-no-window -gpu host -timezone \"$TZ\" \
+          EMULATOR_COMMON_OPTS="-no-window -gpu swwiftshader -timezone \"$TZ\" \
             -no-snapshot -no-audio -no-boot-anim \
             -netdelay none -netspeed full \
             -camera-back none -camera-front none \
