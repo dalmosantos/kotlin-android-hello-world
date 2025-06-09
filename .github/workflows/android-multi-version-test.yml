@@ -38,6 +38,7 @@ on:
       timezone:
         required: true
         type: string
+        default: 'America/Sao_Paulo'
         description: 'Timezone setting'
       language:
         required: true
@@ -210,40 +211,43 @@ jobs:
         run: |
           set -euo pipefail
           
-          # Check acceleration support and log details
-          accel_output=$($ANDROID_HOME/emulator/emulator -accel-check || true)
-          echo "Acceleration check output: $accel_output"
-
+          # Check acceleration support
+          $ANDROID_HOME/emulator/emulator -accel-check || true
           adb start-server
           
           # Generate emulator ports
           EMULATOR_PORTS_ARRAY=($(seq 5554 2 $((5554 + (EMULATOR_COUNT - 1) * 2))))
-          
+                   
+          # Common emulator options
+          # Note: $TZ is used for timezone, which is set from inputs.timezone via the job's env block.
+          # -verbose is included for detailed logs; consider removing if too noisy for simultaneous boot.
+          EMULATOR_COMMON_OPTS="-timezone \"$TZ\" \
+            -no-snapshot -no-audio -no-boot-anim \
+            -netdelay none -netspeed full \
+            -camera-back none -camera-front none \
+            -no-passive-gps -no-location-ui \
+            -qt-hide-window -grpc-use-token -idle-grpc-timeout \
+            -no-jni -no-snapshot-load -no-snapshot-save \
+            -gpu swiftshader_indirect \
+            -memory $MEMORY_SIZE \
+            -partition-size 4096 \
+            -cache-size 2048 \
+            -accel on \
+            -verbose"
+
           if [[ "$SEQUENTIAL_BOOT" == "true" ]]; then
-            echo "Starting emulators sequentially for better stability..."
+            echo "Starting emulators sequentially..."
             for i in "${!EMULATOR_PORTS_ARRAY[@]}"; do
               port=${EMULATOR_PORTS_ARRAY[$i]}
               avd_name="test$i"
               echo "Starting emulator $avd_name on port $port"
               
-              $ANDROID_HOME/emulator/emulator -avd "$avd_name" \
-                -port $port \
-                -timezone America/Sao_Paulo \
-                -no-snapshot -no-audio -no-boot-anim \
-                -netdelay none -netspeed full \
-                -camera-back none -camera-front none \
-                -gpu swiftshader_indirect \
-                -memory $MEMORY_SIZE \
-                -partition-size 4096 \
-                -cache-size 2048 \
-                -accel on \
+              # shellcheck disable=SC2086
+              $ANDROID_HOME/emulator/emulator -avd "$avd_name" -port "$port" $EMULATOR_COMMON_OPTS \
                 -qemu -smp 2 &
               
-              # Wait a bit before starting the next one to reduce resource contention
-              if [[ $i -lt $((${#EMULATOR_PORTS_ARRAY[@]} - 1)) ]]; then
-                echo "Waiting 60 seconds before starting next emulator..."
-                sleep 60
-              fi
+              # Wait before starting next emulator
+              [[ $i -lt $((${#EMULATOR_PORTS_ARRAY[@]} - 1)) ]] && sleep 60
             done
           else
             echo "Starting all emulators simultaneously..."
@@ -252,18 +256,9 @@ jobs:
               avd_name="test$i"
               echo "Starting emulator $avd_name on port $port"
               
-              $ANDROID_HOME/emulator/emulator -avd "$avd_name" \
-                -port $port \
-                -timezone America/Sao_Paulo \
-                -no-snapshot -no-audio -no-boot-anim \
-                -netdelay none -netspeed full \
-                -camera-back none -camera-front none \
-                -gpu swiftshader_indirect \
-                -memory $MEMORY_SIZE \
-                -partition-size 4096 \
-                -cache-size 2048 \
-                -accel on \
-                -qemu -smp 2 > /dev/null 2>&1 &
+              # shellcheck disable=SC2086
+              $ANDROID_HOME/emulator/emulator -avd "$avd_name" -port "$port" $EMULATOR_COMMON_OPTS \
+                -qemu -smp 2 &
             done
             sleep 30
           fi
@@ -275,78 +270,71 @@ jobs:
         timeout-minutes: 20
         run: |
           set -euo pipefail
-          MAX_ATTEMPTS=50
+
+          MAX_ATTEMPTS=30
           SLEEP_SECONDS=20
           BOOT_COMPLETE_PROP="sys.boot_completed"
-          LAUNCHER_PROP="service.bootanim.exit"
-          
-          # Convert space-separated string to array
+
           read -ra EMULATOR_PORTS_ARRAY <<< "$EMULATOR_PORTS_LIST"
-          
           echo "Waiting for ${#EMULATOR_PORTS_ARRAY[@]} emulator(s) to boot..."
-          
+
           for port in "${EMULATOR_PORTS_ARRAY[@]}"; do
-            echo "=== Waiting for emulator-$port to boot ==="
-            n=0
-            boot_completed=""
-            boot_anim_exit=""
-            
-            until [[ "$boot_completed" == "1" && ( "$boot_anim_exit" == "1" || ( -z "$boot_anim_exit" && $n -ge 10 ) ) ]] || [[ $n -ge $MAX_ATTEMPTS ]]; do
-              boot_completed=$(adb -s emulator-$port shell getprop $BOOT_COMPLETE_PROP 2>/dev/null | tr -d '\r' || echo "0")
-              boot_anim_exit=$(adb -s emulator-$port shell getprop $LAUNCHER_PROP 2>/dev/null | tr -d '\r' || echo "0")
-              
-              echo "Emulator $port - Attempt $((n+1))/$MAX_ATTEMPTS: boot_completed=$boot_completed, boot_anim_exit=$boot_anim_exit"
-              
-              if [[ "$boot_completed" == "1" && ( "$boot_anim_exit" == "1" || ( -z "$boot_anim_exit" && $n -ge 10 ) ) ]]; then
-                echo "✅ Emulator $port is ready (boot_anim_exit workaround)!"
-                break
-              fi
-              
-              sleep $SLEEP_SECONDS
-              n=$((n+1))
-            done
-            
-            if [[ "$boot_completed" != "1" || ( "$boot_anim_exit" != "1" && ! ( -z "$boot_anim_exit" && $n -ge 10 ) ) ]]; then
-              echo "❌ Emulator on port $port failed to boot within timeout"
-              echo "Final state: boot_completed=$boot_completed, boot_anim_exit=$boot_anim_exit"
-              
-              # Diagnostic information
-              echo "=== Diagnostic Information ==="
-              adb -s emulator-$port shell getprop ro.boot.qemu.cpu 2>/dev/null || echo "Failed to get CPU info"
-              adb -s emulator-$port shell getprop ro.kernel.qemu 2>/dev/null || echo "Failed to get kernel info"
-              adb -s emulator-$port shell ps | head -20 2>/dev/null || echo "Failed to get process list"
-              adb -s emulator-$port shell logcat -d | tail -100 || echo "Failed to get logcat"
-              
+            LOGCAT_FILE="${ARTIFACTS_BASE_PATH}/boot-logcat-emulator-$port.txt"
+            mkdir -p "$(dirname "$LOGCAT_FILE")"
+            touch "$LOGCAT_FILE"
+
+            # Kill existing logcat processes for this port
+            pkill -f "adb -s emulator-$port logcat" || true
+
+            # Start capturing logcat output for this emulator
+            adb -s emulator-$port logcat -G 16M
+            adb -s emulator-$port logcat -v time *:V > "$LOGCAT_FILE" &
+            LOGCAT_PID=$!
+
+            wait_for_emulator() {
+              for ((i=1; i<=MAX_ATTEMPTS; i++)); do
+                echo "ADB State: $(adb -s emulator-$port get-state)"
+                echo "Boot Property: $(adb -s emulator-$port shell getprop $BOOT_COMPLETE_PROP)"
+                if adb -s emulator-$port get-state 2>/dev/null | grep -q "device"; then
+                  if adb -s emulator-$port shell getprop "$BOOT_COMPLETE_PROP" 2>/dev/null | grep -q 1; then
+                    echo "✅ Emulator-$port booted in $((i * SLEEP_SECONDS)) seconds"
+                    return 0
+                  fi
+                fi
+                echo "⏳ Waiting for emulator-$port... (Attempt $i/$MAX_ATTEMPTS)"
+                sleep $SLEEP_SECONDS
+              done
+              return 1
+            }
+
+            if wait_for_emulator; then
+              echo "Emulator-$port booted, sending keyevent to unlock..."
+              RETRIES=0
+              MAX_RETRIES=5
+              until adb -s emulator-$port shell input keyevent 82 2>/dev/null || [ $RETRIES -eq $MAX_RETRIES ]; do
+                echo "🔄 Keyevent input failed, retrying..."
+                sleep 3
+                RETRIES=$((RETRIES+1))
+              done
+              android_version=$(adb -s emulator-$port shell getprop ro.build.version.release 2>/dev/null || echo "unknown")
+              api_level=$(adb -s emulator-$port shell getprop ro.build.version.sdk 2>/dev/null || echo "unknown")
+              echo "# ----- 📱 Emulator $port Ready: Android $android_version (API $api_level) -----"
+            else
+              echo "❌ Emulator-$port failed to boot"
+              echo "🔍 Boot log (last 50 lines):"
+              tail -n 50 "$LOGCAT_FILE" | grep -i "error" || tail -n 50 "$LOGCAT_FILE"
+              kill $LOGCAT_PID || true
               exit 1
             fi
-            
-            # Try to force bootanim.exit if it is empty
-            if [[ -z "$boot_anim_exit" ]]; then
-              echo "Forcing setprop service.bootanim.exit 1 on emulator-$port"
-              adb -s emulator-$port shell setprop service.bootanim.exit 1 || true
-            fi
 
-            # Additional verification - check if we can unlock screen
-            echo "Attempting to unlock screen for emulator-$port..."
-            RETRIES=0
-            MAX_RETRIES=5
-            until adb -s emulator-$port shell input keyevent 82 2>/dev/null || [[ $RETRIES -eq $MAX_RETRIES ]]; do
-              echo "🔄 Keyevent input failed for emulator-$port, retrying... ($((RETRIES+1))/$MAX_RETRIES)"
-              sleep 4
-              RETRIES=$((RETRIES+1))
-            done
-            
-            if [[ $RETRIES -eq $MAX_RETRIES ]]; then
-              echo "⚠️ Warning: Could not unlock screen for emulator-$port, but continuing..."
-            fi
-            
-            android_version=$(adb -s emulator-$port shell getprop ro.build.version.release 2>/dev/null || echo "unknown")
-            api_level=$(adb -s emulator-$port shell getprop ro.build.version.sdk 2>/dev/null || echo "unknown")
-            echo "# ----- 📱 Emulator $port Ready: Android $android_version (API $api_level) -----"
+            kill $LOGCAT_PID || true
+            echo "📄 Final boot logcat for emulator-$port (last 30 lines):"
+            tail -n 30 "$LOGCAT_FILE"
+            sleep 5
           done
-          
+
           echo "🎉 All emulators are ready!"
-          sleep 20
+          sleep 10
 
       - name: Configure emulator system settings
         run: |
@@ -436,34 +424,37 @@ jobs:
           
           sleep 10
 
+
       - name: Run instrumentation tests
         run: |
-          # Convert space-separated string to array
           read -ra EMULATOR_PORTS_ARRAY <<< "$EMULATOR_PORTS_LIST"
           
-          # If multiple emulators, run tests sequentially to avoid resource conflicts
+          # Common Gradle parameters
+          GRADLE_PARAMS=(
+            "--build-cache"
+            "-Pandroid.buildToolsVersion=${{ env.BUILD_TOOLS_VERSION }}"
+            "-Pandroid.testInstrumentationRunnerArguments.notAnnotation=androidx.test.filters.LargeTest"
+            "-Pandroid.experimental.androidTest.useUnifiedTestPlatform=true"
+            "-Dorg.gradle.daemon=true"
+            "-Dorg.gradle.parallel=true"
+            "-Dorg.gradle.configureondemand=true"
+            "-Dorg.gradle.caching=true"
+            "-Dkotlin.incremental=true" # Ensure this is a valid Gradle property or JVM arg if intended for Kotlin daemon
+            "-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8"
+            "-Dorg.gradle.internal.http.socketTimeout=180000"
+            "-Dorg.gradle.internal.http.connectionTimeout=120000"
+            "--info"
+          )
           if [[ ${#EMULATOR_PORTS_ARRAY[@]} -gt 1 ]]; then
             echo "Running tests sequentially on ${#EMULATOR_PORTS_ARRAY[@]} emulators..."
             for port in "${EMULATOR_PORTS_ARRAY[@]}"; do
               echo "🧪 Running tests on emulator-$port..."
-              ./gradlew connectedAndroidTest --build-cache \
-                -Pandroid.buildToolsVersion=${{ env.BUILD_TOOLS_VERSION }} \
-                -Pandroid.testInstrumentationRunnerArguments.notAnnotation=androidx.test.filters.LargeTest \
-                -Pandroid.experimental.androidTest.useUnifiedTestPlatform=true \
-                -Dandroid.testInstrumentationRunnerArguments.deviceSerial=emulator-$port \
-                -Dorg.gradle.internal.http.socketTimeout=180000 \
-                -Dorg.gradle.internal.http.connectionTimeout=120000 \
-                --info
+              ./gradlew connectedAndroidTest "${GRADLE_PARAMS[@]}" \
+                -Dandroid.testInstrumentationRunnerArguments.deviceSerial=emulator-$port
             done
           else
             echo "🧪 Running tests on single emulator..."
-            ./gradlew connectedAndroidTest --build-cache --parallel \
-              -Pandroid.buildToolsVersion=${{ env.BUILD_TOOLS_VERSION }} \
-              -Pandroid.testInstrumentationRunnerArguments.notAnnotation=androidx.test.filters.LargeTest \
-              -Pandroid.experimental.androidTest.useUnifiedTestPlatform=true \
-              -Dorg.gradle.internal.http.socketTimeout=180000 \
-              -Dorg.gradle.internal.http.connectionTimeout=120000 \
-              --info
+            ./gradlew connectedAndroidTest "${GRADLE_PARAMS[@]}" --parallel
           fi
 
       - name: Take screenshots
