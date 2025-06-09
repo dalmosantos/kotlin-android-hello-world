@@ -38,6 +38,7 @@ on:
       timezone:
         required: true
         type: string
+        default: 'America/Sao_Paulo'
         description: 'Timezone setting'
       language:
         required: true
@@ -224,7 +225,7 @@ jobs:
             -no-snapshot -no-audio -no-boot-anim \
             -netdelay none -netspeed full \
             -camera-back none -camera-front none \
-            -no-passive-gps -no-location-ui skip-adb-auth \
+            -no-passive-gps -no-location-ui \
             -qt-hide-window -grpc-use-token -idle-grpc-timeout \
             -no-jni -no-snapshot-load -no-snapshot-save \
             -gpu swiftshader_indirect \
