@@ -439,8 +439,8 @@ jobs:
             "-Dorg.gradle.parallel=true"
             "-Dorg.gradle.configureondemand=true"
             "-Dorg.gradle.caching=true"
-            "-Dkotlin.incremental=true"
-            "-Dorg.gradle.jvmargs='-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8'"
+            "-Dkotlin.incremental=true" # Ensure this is a valid Gradle property or JVM arg if intended for Kotlin daemon
+            "-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8"
             "-Dorg.gradle.internal.http.socketTimeout=180000"
             "-Dorg.gradle.internal.http.connectionTimeout=120000"
             "--info"
