@@ -56,7 +56,7 @@ jobs:
           language: "en_US.UTF-8"
           locale: "en_US.UTF-8"
           max_parallel: ${{ matrix.group.name == '15' && 1 || 2 }}
-          timeout-minutes: 60
+          timeout-minutes: 25
           commit_hash: ""
           emulator_count: ${{ matrix.group.name == '15' && 1 || 2 }}
         env:

@@ -21,7 +21,7 @@ jobs:
       language: en_US.UTF-8
       locale: en_US.UTF-8
       max_parallel: 1
-      timeout-minutes: 45
+      timeout-minutes: 25
       commit_hash: ${{ github.sha }}
       emulator_count: 2
       sequential_boot: true
