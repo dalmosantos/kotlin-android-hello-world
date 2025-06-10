@@ -433,8 +433,7 @@ jobs:
             "-Dorg.gradle.parallel=true"
             "-Dorg.gradle.configureondemand=true"
             "-Dorg.gradle.caching=true"
-            "-Dkotlin.incremental=true" # Ensure this is a valid Gradle property or JVM arg if intended for Kotlin daemon. Assumes org.gradle.jvmargs are set in gradle.properties
-            # -Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8 # Now sourced from gradle.properties
+            "-Dkotlin.incremental=true"
             "-Dorg.gradle.internal.http.socketTimeout=180000"
             "-Dorg.gradle.internal.http.connectionTimeout=120000"
             "--info"
@@ -444,7 +443,7 @@ jobs:
             for port in "${EMULATOR_PORTS_ARRAY[@]}"; do
               echo "🧪 Running tests on emulator-$port..."
               ./gradlew connectedAndroidTest "${GRADLE_PARAMS[@]}" \
-                -Dandroid.testInstrumentationRunnerArguments.deviceSerial=emulator-$port
+                -Dandroid.testInstrumentationRunnerArguments.deviceSerial="emulator-$port"
             done
           else
             echo "🧪 Running tests on single emulator..."
