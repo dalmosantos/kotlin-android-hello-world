@@ -244,6 +244,7 @@ jobs:
             -prop persist.sys.language=$PARSED_EMU_LANG_CODE \
             -prop persist.sys.country=$PARSED_EMU_COUNTRY_CODE \
             -prop persist.sys.locale=$(echo "$LC_ALL" | cut -d'.' -f1 | sed 's/_/-/') " # Use BCP-47 for persist.sys.locale
+          echo "ℹ️ Common Emulator Options: $EMULATOR_COMMON_OPTS"
 
           if [[ "$SEQUENTIAL_BOOT" == "true" ]]; then
             echo "Starting emulators sequentially..."
@@ -252,16 +253,20 @@ jobs:
               avd_name="Pixel_${{ inputs.pixel }}_API_${{ inputs.api_level }}_Emulator_$i"
               echo " "
               echo "==== Starting emulator $avd_name on port $port ====" 
-              echo " "            
+              echo " "
+              echo "🚀 Launching emulator $avd_name on port $port..."
+              EMULATOR_LOG_FILE="${{ env.ARTIFACTS_BASE_PATH }}/emulator-logs/emulator-${port}-start.log"
               $ANDROID_HOME/emulator/emulator -avd $avd_name -port "$port" $EMULATOR_COMMON_OPTS \
-                -qemu -smp 2 > /dev/null 2>&1 &
+                -qemu -smp 2 &> "$EMULATOR_LOG_FILE" &
               EMU_PID=$!
+              echo "PID for $avd_name: $EMU_PID"
               sleep 5
               if ! ps -p $EMU_PID > /dev/null; then
-                echo "❌ Failed to start emulator $avd_name on port $port"
+                echo "❌ Failed to launch emulator process $avd_name on port $port. Check log: $EMULATOR_LOG_FILE"
                 exit 1
               fi
-              echo "Waiting for emulator-$port to start..."
+              echo "✅ Emulator process $avd_name (PID: $EMU_PID) launched on port $port. Boot sequence will be monitored in a later step."
+              echo "   Startup logs for this emulator are being captured in: $EMULATOR_LOG_FILE"
               
               # Wait before starting next emulator
               [[ $i -lt $((${#EMULATOR_PORTS_ARRAY[@]} - 1)) ]] && sleep 60
@@ -273,15 +278,20 @@ jobs:
               avd_name="Pixel_${{ inputs.pixel }}_API_${{ inputs.api_level }}_Emulator_$i"
               echo " "
               echo "==== Starting emulator $avd_name on port $port ====" 
-              echo " "  
+              echo " "
+              echo "🚀 Launching emulator $avd_name on port $port..."
+              EMULATOR_LOG_FILE="${{ env.ARTIFACTS_BASE_PATH }}/emulator-logs/emulator-${port}-start.log"
               $ANDROID_HOME/emulator/emulator -avd $avd_name -port "$port" $EMULATOR_COMMON_OPTS \
-                -qemu -smp 2 &
+                -qemu -smp 2 &> "$EMULATOR_LOG_FILE" &
               EMU_PID=$!
+              echo "PID for $avd_name: $EMU_PID"
               sleep 5
               if ! ps -p $EMU_PID > /dev/null; then
-                echo "❌ Failed to start emulator $avd_name on port $port"
+                echo "❌ Failed to launch emulator process $avd_name on port $port. Check log: $EMULATOR_LOG_FILE"
                 exit 1
               fi
+              echo "✅ Emulator process $avd_name (PID: $EMU_PID) launched on port $port. Boot sequence will be monitored in a later step."
+              echo "   Startup logs for this emulator are being captured in: $EMULATOR_LOG_FILE"
             done
           echo "All emulators have been started. Please wait for full boot in the next step."
             sleep 60
