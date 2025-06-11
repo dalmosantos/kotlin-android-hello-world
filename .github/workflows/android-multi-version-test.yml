@@ -224,6 +224,10 @@ jobs:
           # Generate emulator ports
           EMULATOR_PORTS_ARRAY=($(seq 5554 2 $((5554 + (EMULATOR_COUNT - 1) * 2))))
                    
+          # Parse LANG for language and country codes for emulator properties
+          PARSED_EMU_LANG_CODE=$(echo "$LANG" | cut -d'_' -f1)
+          PARSED_EMU_COUNTRY_CODE=$(echo "$LANG" | cut -d'_' -f2 | cut -d'.' -f1)
+
           # Common emulator options with TZ, LANG, LC_ALL
           EMULATOR_COMMON_OPTS="-no-window -gpu swiftshader -timezone \"$TZ\" \
             -no-snapshot -no-audio -no-boot-anim \
@@ -237,9 +241,9 @@ jobs:
             -cache-size 1024 \
             -accel on \
             -prop persist.sys.timezone=$TZ \
-            -prop persist.sys.language=${LANG%%_*} \
-            -prop persist.sys.country=${LANG#*_} \
-            -prop persist.sys.locale=$LC_ALL"
+            -prop persist.sys.language=$PARSED_EMU_LANG_CODE \
+            -prop persist.sys.country=$PARSED_EMU_COUNTRY_CODE \
+            -prop persist.sys.locale=$(echo "$LC_ALL" | cut -d'.' -f1 | sed 's/_/-/') " # Use BCP-47 for persist.sys.locale
 
           if [[ "$SEQUENTIAL_BOOT" == "true" ]]; then
             echo "Starting emulators sequentially..."
@@ -358,42 +362,75 @@ jobs:
 
       - name: Configure emulator system settings
         run: |
+          set -euo pipefail
+
+          # Parse target language and locale from inputs (e.g., en_US.UTF-8)
+          # Android system properties and settings require specific formats (e.g., 'en', 'US', 'en-US').
+          TARGET_LANG_INPUT="${{ inputs.language }}" # e.g., en_US.UTF-8
+          TARGET_LANG_CODE=$(echo "$TARGET_LANG_INPUT" | cut -d'_' -f1) # e.g., en
+          TARGET_COUNTRY_CODE=$(echo "$TARGET_LANG_INPUT" | cut -d'_' -f2 | cut -d'.' -f1) # e.g., US
+          TARGET_BCP47_LOCALE="${TARGET_LANG_CODE}-${TARGET_COUNTRY_CODE}" # e.g., en-US
+
           # Convert space-separated string to array
           read -ra EMULATOR_PORTS_ARRAY <<< "$EMULATOR_PORTS_LIST"
           
           for port in "${EMULATOR_PORTS_ARRAY[@]}"; do
             echo "🔧 Configuring emulator-$port..."
+            echo "Host ENV: TZ=$TZ, LANG (from input)=${{ inputs.language }}, LC_ALL (from input)=${{ inputs.locale }}"
+            echo "Target Android settings: Timezone=$TZ, Language=$TARGET_LANG_CODE, Country=$TARGET_COUNTRY_CODE, Locale (BCP 47)=$TARGET_BCP47_LOCALE"
 
-            # Set timezone, language, and locale - multiple methods
-            adb -s emulator-$port shell "setprop persist.sys.timezone '$TZ' && setprop persist.sys.language '${LANG%%_*}' && setprop persist.sys.country '${LANG#*_}' && setprop persist.sys.locale '$LC_ALL'" || true
+            # Timezone: Emulator is started with -timezone and -prop persist.sys.timezone.
+            # This section verifies and can optionally try to set it again if needed.
+            CURRENT_TZ_PROP=$(adb -s emulator-$port shell getprop persist.sys.timezone 2>/dev/null || echo "unknown")
+            echo "Initial 'persist.sys.timezone' from getprop: $CURRENT_TZ_PROP"
+            if [ "$CURRENT_TZ_PROP" != "$TZ" ]; then
+              echo "Warning: 'persist.sys.timezone' ($CURRENT_TZ_PROP) does not match target '$TZ'."
+              echo "Attempting to set 'persist.sys.timezone' to '$TZ' via adb shell."
+              adb -s emulator-$port shell "setprop persist.sys.timezone '$TZ'" || echo "Failed to set persist.sys.timezone via adb."
+              # Note: A full Zygote restart ('stop; start') might be needed for changes to fully apply system-wide.
+            fi
+
+            # Locale: Set persist properties for language, country, and BCP-47 locale.
+            # These are also typically set via emulator startup parameters. This step reinforces them.
+            echo "Setting persist locale properties: lang=$TARGET_LANG_CODE, country=$TARGET_COUNTRY_CODE, locale=$TARGET_BCP47_LOCALE"
+            adb -s emulator-$port shell "setprop persist.sys.language '$TARGET_LANG_CODE'; \
+                                         setprop persist.sys.country '$TARGET_COUNTRY_CODE'; \
+                                         setprop persist.sys.locale '$TARGET_BCP47_LOCALE'" || echo "Warning: Failed to set one or more persist locale properties."
             
-            # Alternative method using settings
-            adb -s emulator-$port shell settings put system system_locales "$LC_ALL" || true
+            # For Android N (API 24) and above, 'settings put system system_locales' is the way to set locales.
+            # The value should be a BCP-47 language tag list (e.g., "en-US").
+            echo "Attempting to set 'system_locales' to '$TARGET_BCP47_LOCALE' for API ${{ inputs.api_level }}"
+            adb -s emulator-$port shell settings put system system_locales "$TARGET_BCP47_LOCALE" || echo "Warning: 'settings put system system_locales' failed. This might be due to permissions or device state."
+            
             adb -s emulator-$port shell settings put system time_12_24 "" || true  # Reset to auto
             
-            # Force language change through am command
-            adb -s emulator-$port shell "am broadcast -a android.intent.action.LOCALE_CHANGED --ez extra_restart true" || true
+            # Attempt to broadcast LOCALE_CHANGED. This often fails due to permissions on non-rooted/user emulators.
+            echo "Attempting to broadcast LOCALE_CHANGED (may fail due to permissions)..."
+            adb -s emulator-$port shell "am broadcast -a android.intent.action.LOCALE_CHANGED --ez extra_restart true" || echo "LOCALE_CHANGED broadcast failed as expected on some systems (permission denial is common)."
+
+            echo "Verifying settings on emulator-$port after configuration attempts:"
+            echo -n "persist.sys.timezone: "; adb -s emulator-$port shell getprop persist.sys.timezone
+            echo -n "persist.sys.language: "; adb -s emulator-$port shell getprop persist.sys.language
+            echo -n "persist.sys.country: "; adb -s emulator-$port shell getprop persist.sys.country
+            echo -n "persist.sys.locale: "; adb -s emulator-$port shell getprop persist.sys.locale
+            echo -n "system_locales: "; adb -s emulator-$port shell settings get system system_locales
+            echo -n "Current date command output: "; adb -s emulator-$port shell date
             
-            # Verify settings
-            echo "Current settings:"
-            adb -s emulator-$port shell getprop | grep -E "persist.sys.(timezone|language|country|locale)" || true
-            adb -s emulator-$port shell settings get system system_locales || true
-            
-            # Disable animations and optimize for testing
+            # Disable animations and optimize for testing (keep || true as these are non-critical optimizations)
             adb -s emulator-$port shell settings put global window_animation_scale 0 2>/dev/null || true
             adb -s emulator-$port shell settings put global transition_animation_scale 0 2>/dev/null || true
             adb -s emulator-$port shell settings put global animator_duration_scale 0 2>/dev/null || true
             
-            # Security and API settings
+            # Security and API settings (keep || true)
             adb -s emulator-$port shell settings put global hidden_api_policy 1 2>/dev/null || true
             adb -s emulator-$port shell settings put global hidden_api_policy_pre_p_apps 1 2>/dev/null || true
             adb -s emulator-$port shell settings put global hidden_api_policy_p_apps 1 2>/dev/null || true
             
-            # Power and display settings
+            # Power and display settings (keep || true)
             adb -s emulator-$port shell settings put system screen_off_timeout 1800000 2>/dev/null || true
             adb -s emulator-$port shell svc power stayon true 2>/dev/null || true
             
-            # Testing optimizations
+            # Testing optimizations (keep || true)
             adb -s emulator-$port shell settings put global force_resizable_activities 1 2>/dev/null || true
             adb -s emulator-$port shell settings put global enable_freeform_support 1 2>/dev/null || true
             
