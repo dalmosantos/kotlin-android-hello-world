@@ -43,10 +43,12 @@ on:
       language:
         required: true
         type: string
+        default: 'pt_BR.UTF-8'
         description: 'Language setting'
       locale:
         required: true
         type: string
+        default: 'pt_BR.UTF-8'
         description: 'Locale setting'
       max_parallel:
         required: true
@@ -93,7 +95,7 @@ jobs:
       LANG: ${{ inputs.language }}
       LC_ALL: ${{ inputs.locale }}
       EMULATOR_COUNT: ${{ inputs.emulator_count }}
-      MEMORY_SIZE: ${{ inputs.api_level <= 26 && '2048' || '3072' }}
+      MEMORY_SIZE: ${{ inputs.api_level <= 26 && '2048' || '3584' }}
       SEQUENTIAL_BOOT: ${{ inputs.sequential_boot }}
 
     defaults:
@@ -180,6 +182,7 @@ jobs:
           else
             MAX_WORKERS=$(sysctl -n hw.ncpu)
           fi
+          echo "Using $MAX_WORKERS workers for Gradle build"
           ./gradlew assembleDebug \
             --build-cache \
             --parallel \
@@ -196,9 +199,9 @@ jobs:
           
           for i in "${!EMULATOR_PORTS_ARRAY[@]}"; do
             port=${EMULATOR_PORTS_ARRAY[$i]}
-            avd_name="test$i"
+            avd_name="Pixel_${{ inputs.pixel }}_API_${{ inputs.api_level }}_Emulator_$i"
             echo "Creating AVD: $avd_name for port: $port"
-            echo "no" | avdmanager create avd -n "$avd_name" \
+            echo "no" | avdmanager create avd -n $avd_name \
               -d "pixel_${{ inputs.pixel }}" \
               -k "${{ env.SYSTEM_IMAGE }}" \
               --force
@@ -218,33 +221,40 @@ jobs:
           # Generate emulator ports
           EMULATOR_PORTS_ARRAY=($(seq 5554 2 $((5554 + (EMULATOR_COUNT - 1) * 2))))
                    
-          # Common emulator options
-          # Note: $TZ is used for timezone, which is set from inputs.timezone via the job's env block.
-          # -verbose is included for detailed logs; consider removing if too noisy for simultaneous boot.
-          EMULATOR_COMMON_OPTS="-timezone \"$TZ\" \
+          # Common emulator options with TZ, LANG, LC_ALL
+          EMULATOR_COMMON_OPTS="-no-window -gpu swiftshader -timezone \"$TZ\" \
             -no-snapshot -no-audio -no-boot-anim \
             -netdelay none -netspeed full \
             -camera-back none -camera-front none \
             -no-passive-gps -no-location-ui \
             -qt-hide-window -grpc-use-token -idle-grpc-timeout \
             -no-jni -no-snapshot-load -no-snapshot-save \
-            -gpu swiftshader_indirect \
             -memory $MEMORY_SIZE \
-            -partition-size 4096 \
-            -cache-size 2048 \
+            -partition-size 2048 \
+            -cache-size 1024 \
             -accel on \
-            -verbose"
+            -prop persist.sys.timezone=$TZ \
+            -prop persist.sys.language=${LANG%%_*} \
+            -prop persist.sys.country=${LANG#*_} \
+            -prop persist.sys.locale=$LC_ALL"
 
           if [[ "$SEQUENTIAL_BOOT" == "true" ]]; then
             echo "Starting emulators sequentially..."
             for i in "${!EMULATOR_PORTS_ARRAY[@]}"; do
               port=${EMULATOR_PORTS_ARRAY[$i]}
-              avd_name="test$i"
-              echo "Starting emulator $avd_name on port $port"
-              
-              # shellcheck disable=SC2086
-              $ANDROID_HOME/emulator/emulator -avd "$avd_name" -port "$port" $EMULATOR_COMMON_OPTS \
-                -qemu -smp 2 &
+              avd_name="Pixel_${{ inputs.pixel }}_API_${{ inputs.api_level }}_Emulator_$i"
+              echo " "
+              echo "==== Starting emulator $avd_name on port $port ====" 
+              echo " "            
+              $ANDROID_HOME/emulator/emulator -avd $avd_name -port "$port" $EMULATOR_COMMON_OPTS \
+                -qemu -smp 2 > /dev/null 2>&1 &
+              EMU_PID=$!
+              sleep 5
+              if ! ps -p $EMU_PID > /dev/null; then
+                echo "❌ Failed to start emulator $avd_name on port $port"
+                exit 1
+              fi
+              echo "Waiting for emulator-$port to start..."
               
               # Wait before starting next emulator
               [[ $i -lt $((${#EMULATOR_PORTS_ARRAY[@]} - 1)) ]] && sleep 60
@@ -253,14 +263,21 @@ jobs:
             echo "Starting all emulators simultaneously..."
             for i in "${!EMULATOR_PORTS_ARRAY[@]}"; do
               port=${EMULATOR_PORTS_ARRAY[$i]}
-              avd_name="test$i"
-              echo "Starting emulator $avd_name on port $port"
-              
-              # shellcheck disable=SC2086
-              $ANDROID_HOME/emulator/emulator -avd "$avd_name" -port "$port" $EMULATOR_COMMON_OPTS \
+              avd_name="Pixel_${{ inputs.pixel }}_API_${{ inputs.api_level }}_Emulator_$i"
+              echo " "
+              echo "==== Starting emulator $avd_name on port $port ====" 
+              echo " "  
+              $ANDROID_HOME/emulator/emulator -avd $avd_name -port "$port" $EMULATOR_COMMON_OPTS \
                 -qemu -smp 2 &
+              EMU_PID=$!
+              sleep 5
+              if ! ps -p $EMU_PID > /dev/null; then
+                echo "❌ Failed to start emulator $avd_name on port $port"
+                exit 1
+              fi
             done
-            sleep 30
+            echo "All emulators have been started. Please wait for full boot in the next step."
+            sleep 60
           fi
           
           # Export ports list for subsequent steps
@@ -368,6 +385,7 @@ jobs:
           sleep 8
           echo "✨ All emulator configurations completed successfully!"
 
+  
       - name: Install APKs
         timeout-minutes: 8
         run: |
@@ -439,8 +457,7 @@ jobs:
             "-Dorg.gradle.parallel=true"
             "-Dorg.gradle.configureondemand=true"
             "-Dorg.gradle.caching=true"
-            "-Dkotlin.incremental=true" # Ensure this is a valid Gradle property or JVM arg if intended for Kotlin daemon
-            "-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8"
+            "-Dkotlin.incremental=true"
             "-Dorg.gradle.internal.http.socketTimeout=180000"
             "-Dorg.gradle.internal.http.connectionTimeout=120000"
             "--info"
@@ -450,7 +467,7 @@ jobs:
             for port in "${EMULATOR_PORTS_ARRAY[@]}"; do
               echo "🧪 Running tests on emulator-$port..."
               ./gradlew connectedAndroidTest "${GRADLE_PARAMS[@]}" \
-                -Dandroid.testInstrumentationRunnerArguments.deviceSerial=emulator-$port
+                -Dandroid.testInstrumentationRunnerArguments.deviceSerial="emulator-$port"
             done
           else
             echo "🧪 Running tests on single emulator..."
