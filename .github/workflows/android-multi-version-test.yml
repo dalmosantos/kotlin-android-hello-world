@@ -214,6 +214,9 @@ jobs:
         run: |
           set -euo pipefail
           
+          # Create a directory for emulator logs
+          mkdir -p ${{ env.ARTIFACTS_BASE_PATH }}/emulator-logs
+
           # Check acceleration support
           $ANDROID_HOME/emulator/emulator -accel-check || true
           adb start-server
@@ -419,7 +422,11 @@ jobs:
           
           for port in "${EMULATOR_PORTS_ARRAY[@]}"; do
             echo "🎭 Preparing emulator-$port for UI tests..."
-            
+
+            # Force-stop Google Maps and go to home screen
+            adb -s emulator-$port shell am force-stop com.google.android.apps.maps || true
+            adb -s emulator-$port shell input keyevent 3 || true
+
             # Wake up device and unlock
             for i in {1..2}; do
               echo "📱 Sending wakeup sequence to emulator-$port (attempt $i)..."
@@ -441,7 +448,6 @@ jobs:
           done
           
           sleep 10
-
 
       - name: Run instrumentation tests
         run: |
