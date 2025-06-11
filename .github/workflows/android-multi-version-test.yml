@@ -390,7 +390,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          MIN_API_FOR_LATEST_APPS=26
+          MIN_API_FOR_LATEST_APPS=24
           CURRENT_API_LEVEL=${{ inputs.api_level }}
           if [ "$CURRENT_API_LEVEL" -lt "$MIN_API_FOR_LATEST_APPS" ]; then
             echo "Skipping Google Apps update for API $CURRENT_API_LEVEL (requires API $MIN_API_FOR_LATEST_APPS+)."
