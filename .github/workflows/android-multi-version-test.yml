@@ -414,19 +414,19 @@ jobs:
             local app_name="$2"
 
             echo "Fetching download page for $app_name"
-            version_page=$(curl -sL "$page_url" | grep -oP 'href="\K(/apk/google-inc/[^/]+/[^/]+/download/[^"]*)' | head -1)
+            version_page=$(curl -sL "$page_url" | grep -oE 'href="\K(/apk/google-inc/[^/]+/[^/]+/download/[^"]*)' | head -1)
             if [[ -z "$version_page" ]]; then
               echo "Error: Cannot find version-specific page for $app_name"
               exit 1
             fi
 
-            download_page=$(curl -sL "https://www.apkmirror.com$version_page" | grep -oP 'href="\K(/apks/download/[^"]+|/apkmirror/download.php\?[^"]+)' | head -1)
+            download_page=$(curl -sL "https://www.apkmirror.com$version_page" | grep -oE 'href="\K(/apks/download/[^"]+|/apkmirror/download.php\?[^"]+)' | head -1)
             if [[ -z "$download_page" ]]; then
               echo "Error: Cannot find download redirect page for $app_name"
               exit 1
             fi
 
-            apk_url=$(curl -sL "https://www.apkmirror.com$download_page" | grep -oP 'href="https://download\.apkmirror\.com/[^"]+"' | sed 's/href="//' | head -1)
+            apk_url=$(curl -sL "https://www.apkmirror.com$download_page" | grep -oE 'href="https://download\.apkmirror\.com/[^"]+"' | sed 's/href="//' | head -1)
             if [[ -z "$apk_url" ]]; then
               echo "Error: Cannot find final APK URL for $app_name"
               exit 1
