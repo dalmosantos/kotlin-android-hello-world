@@ -43,10 +43,12 @@ on:
       language:
         required: true
         type: string
+        default: 'pt_BR.UTF-8'
         description: 'Language setting'
       locale:
         required: true
         type: string
+        default: 'pt_BR.UTF-8'
         description: 'Locale setting'
       max_parallel:
         required: true
@@ -219,7 +221,7 @@ jobs:
           # Generate emulator ports
           EMULATOR_PORTS_ARRAY=($(seq 5554 2 $((5554 + (EMULATOR_COUNT - 1) * 2))))
                    
-          # Common emulator options
+          # Common emulator options with TZ, LANG, LC_ALL
           EMULATOR_COMMON_OPTS="-no-window -gpu swiftshader -timezone \"$TZ\" \
             -no-snapshot -no-audio -no-boot-anim \
             -netdelay none -netspeed full \
@@ -230,7 +232,11 @@ jobs:
             -memory $MEMORY_SIZE \
             -partition-size 2048 \
             -cache-size 1024 \
-            -accel on"
+            -accel on \
+            -prop persist.sys.timezone=$TZ \
+            -prop persist.sys.language=${LANG%%_*} \
+            -prop persist.sys.country=${LANG#*_} \
+            -prop persist.sys.locale=$LC_ALL"
 
           if [[ "$SEQUENTIAL_BOOT" == "true" ]]; then
             echo "Starting emulators sequentially..."
@@ -378,6 +384,93 @@ jobs:
           
           sleep 8
           echo "✨ All emulator configurations completed successfully!"
+
+      - name: Update Chrome, WebView, Maps, and Gboard to latest stable
+        timeout-minutes: 15
+        run: |
+          set -euo pipefail
+
+          MIN_API_FOR_LATEST_APPS=26
+          CURRENT_API_LEVEL=${{ inputs.api_level }}
+          if [ "$CURRENT_API_LEVEL" -lt "$MIN_API_FOR_LATEST_APPS" ]; then
+            echo "Skipping Google Apps update for API $CURRENT_API_LEVEL (requires API $MIN_API_FOR_LATEST_APPS+)."
+            exit 0
+          fi
+
+          declare -A APPS=(
+            [chrome]="https://www.apkmirror.com/apk/google-inc/chrome/"
+            [webview]="https://www.apkmirror.com/apk/google-inc/android-system-webview/"
+            [maps]="https://www.apkmirror.com/apk/google-inc/maps/"
+            [gboard]="https://www.apkmirror.com/apk/google-inc/gboard/"
+          )
+
+          # Generic function to get the APK download link
+          get_latest_apk_url() {
+            local page_url="$1"
+            local app_name="$2"
+
+            echo "Fetching download page for $app_name"
+            version_page=$(curl -sL "$page_url" | grep -oP 'href="\K(/apk/google-inc/[^/]+/[^/]+/download/[^"]*)' | head -1)
+            if [[ -z "$version_page" ]]; then
+              echo "Error: Cannot find version-specific page for $app_name"
+              exit 1
+            fi
+
+            download_page=$(curl -sL "https://www.apkmirror.com$version_page" | grep -oP 'href="\K(/apks/download/[^"]+|/apkmirror/download.php\?[^"]+)' | head -1)
+            if [[ -z "$download_page" ]]; then
+              echo "Error: Cannot find download redirect page for $app_name"
+              exit 1
+            fi
+
+            apk_url=$(curl -sL "https://www.apkmirror.com$download_page" | grep -oP 'href="https://download\.apkmirror\.com/[^"]+"' | sed 's/href="//' | head -1)
+            if [[ -z "$apk_url" ]]; then
+              echo "Error: Cannot find final APK URL for $app_name"
+              exit 1
+            fi
+
+            echo "$apk_url"
+          }
+
+          download_and_install_apk() {
+            local app_id="$1"
+            local app_label="$2"
+            local app_url="${APPS[$app_id]}"
+            local apk_name="$app_id.apk"
+
+            echo "Downloading latest $app_label..."
+            apk_link=$(get_latest_apk_url "$app_url" "$app_label")
+            echo "$app_label APK URL: $apk_link"
+
+            if ! wget --progress=dot:giga -O "$apk_name" "$apk_link"; then
+              echo "Error downloading $app_label APK."
+              return 1
+            fi
+
+            for port in ${EMULATOR_PORTS_LIST}; do
+              echo "--- Installing $app_label on emulator-$port ---"
+              if ! adb -s "emulator-$port" install -r -g "$apk_name"; then
+                echo "Warning: Failed to install $app_label on emulator-$port"
+              fi
+            done
+
+            rm -f "$apk_name"
+          }
+
+          # Run the process for each app
+          download_and_install_apk chrome "Google Chrome"
+          download_and_install_apk webview "Android System WebView"
+          download_and_install_apk maps "Google Maps"
+          download_and_install_apk gboard "Gboard"
+
+          # Try to set WebView implementation
+          for port in ${EMULATOR_PORTS_LIST}; do
+            echo "Setting WebView implementation to Chrome on emulator-$port..."
+            adb -s "emulator-$port" shell cmd webviewupdate set-webview-implementation com.android.chrome || \
+              echo "Warning: Could not set WebView implementation on emulator-$port"
+          done
+
+          echo "Google Apps update process finished."
+
 
       - name: Install APKs
         timeout-minutes: 8

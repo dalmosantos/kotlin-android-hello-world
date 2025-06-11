@@ -66,8 +66,8 @@ jobs:
       java_version: 17
       gradle_version: "8.12.1"
       timezone: "America/Sao_Paulo"
-      language: "en_US.UTF-8"
-      locale: "en_US.UTF-8"
+      language: "pt_BR.UTF-8"
+      locale: "pt_BR.UTF-8"
       max_parallel: 1
       timeout-minutes: 30
       commit_hash: " "
