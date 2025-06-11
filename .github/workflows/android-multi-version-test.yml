@@ -363,6 +363,13 @@ jobs:
           
           for port in "${EMULATOR_PORTS_ARRAY[@]}"; do
             echo "🔧 Configuring emulator-$port..."
+
+            # Set timezone, language, and locale
+            adb -s emulator-$port shell setprop persist.sys.timezone $TZ 2>/dev/null || true
+            adb -s emulator-$port shell setprop persist.sys.language ${LANG%%_*} 2>/dev/null || true
+            adb -s emulator-$port shell setprop persist.sys.country ${LANG#*_} 2>/dev/null || true
+            adb -s emulator-$port shell setprop persist.sys.locale $LC_ALL 2>/dev/null || true
+            adb -s emulator-$port shell am broadcast -a android.intent.action.LOCALE_CHANGED 2>/dev/null || true
             
             # Disable animations and optimize for testing
             adb -s emulator-$port shell settings put global window_animation_scale 0 2>/dev/null || true
@@ -424,7 +431,7 @@ jobs:
             echo "🎭 Preparing emulator-$port for UI tests..."
 
             # Force-stop Google Maps and go to home screen
-            adb -s emulator-$port shell am force-stop com.google.android.apps.maps || true
+            adb -s emulator-$port shell pm disable-user --user 0 com.google.android.apps.maps || true
             adb -s emulator-$port shell input keyevent 3 || true
 
             # Wake up device and unlock
@@ -487,9 +494,12 @@ jobs:
           
           # Convert space-separated string to array
           read -ra EMULATOR_PORTS_ARRAY <<< "$EMULATOR_PORTS_LIST"
-          
           for port in "${EMULATOR_PORTS_ARRAY[@]}"; do
             echo "📸 Taking screenshot from emulator-$port..."
+            echo "Timezone: $(adb -s emulator-$port shell getprop persist.sys.timezone)"
+            echo "Language: $(adb -s emulator-$port shell getprop persist.sys.language)"
+            echo "Country: $(adb -s emulator-$port shell getprop persist.sys.country)"
+            echo "Locale: $(adb -s emulator-$port shell getprop persist.sys.locale)"
             adb -s emulator-$port exec-out screencap -p > ${{ env.ARTIFACTS_BASE_PATH }}/screenshots/emulator-${{ inputs.api_level }}-$port.png 2>/dev/null || echo "Failed to capture screenshot from emulator-$port"
           done
 
