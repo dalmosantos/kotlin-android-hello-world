@@ -197,7 +197,7 @@ jobs:
           
           for i in "${!EMULATOR_PORTS_ARRAY[@]}"; do
             port=${EMULATOR_PORTS_ARRAY[$i]}
-            avd_name="Pixel_${{ inputs.pixel }}_API_${{ inputs.api_level }}_Port_$i"
+            avd_name="Pixel_${{ inputs.pixel }}_API_${{ inputs.api_level }}_Emulator_$i"
             echo "Creating AVD: $avd_name for port: $port"
             echo "no" | avdmanager create avd -n $avd_name \
               -d "pixel_${{ inputs.pixel }}" \
@@ -236,10 +236,19 @@ jobs:
             echo "Starting emulators sequentially..."
             for i in "${!EMULATOR_PORTS_ARRAY[@]}"; do
               port=${EMULATOR_PORTS_ARRAY[$i]}
-              avd_name="Pixel_${{ inputs.pixel }}_API_${{ inputs.api_level }}_Port_$i"
-              echo "====Starting emulator $avd_name on port $port===="            
+              avd_name="Pixel_${{ inputs.pixel }}_API_${{ inputs.api_level }}_Emulator_$i"
+              echo " "
+              echo "==== Starting emulator $avd_name on port $port ====" 
+              echo " "            
               $ANDROID_HOME/emulator/emulator -avd $avd_name -port "$port" $EMULATOR_COMMON_OPTS \
-                -qemu -smp 2 &
+                -qemu -smp 2 > /dev/null 2>&1 &
+              EMU_PID=$!
+              sleep 5
+              if ! ps -p $EMU_PID > /dev/null; then
+                echo "❌ Failed to start emulator $avd_name on port $port"
+                exit 1
+              fi
+              echo "Waiting for emulator-$port to start..."
               
               # Wait before starting next emulator
               [[ $i -lt $((${#EMULATOR_PORTS_ARRAY[@]} - 1)) ]] && sleep 60
@@ -248,10 +257,18 @@ jobs:
             echo "Starting all emulators simultaneously..."
             for i in "${!EMULATOR_PORTS_ARRAY[@]}"; do
               port=${EMULATOR_PORTS_ARRAY[$i]}
-              avd_name="Pixel_${{ inputs.pixel }}_API_${{ inputs.api_level }}_Port_$i"
-              echo "====Starting emulator $avd_name on port $port===="     
+              avd_name="Pixel_${{ inputs.pixel }}_API_${{ inputs.api_level }}_Emulator_$i"
+              echo " "
+              echo "==== Starting emulator $avd_name on port $port ====" 
+              echo " "  
               $ANDROID_HOME/emulator/emulator -avd $avd_name -port "$port" $EMULATOR_COMMON_OPTS \
                 -qemu -smp 2 &
+              EMU_PID=$!
+              sleep 5
+              if ! ps -p $EMU_PID > /dev/null; then
+                echo "❌ Failed to start emulator $avd_name on port $port"
+                exit 1
+              fi
             done
             echo "All emulators have been started. Please wait for full boot in the next step."
             sleep 60
