@@ -1,0 +1,52 @@
+name: CI - Android Branches
+
+on:
+  push:
+    branches:
+      - 'feature/*'
+      - develop
+
+jobs:
+  android_tests:
+    strategy:
+      matrix:
+        include:
+          - name: "Android Tests (7.0)"
+            android_version: "7.0"
+            api_level: 24
+            pixel: "xl"
+            system_image: "system-images;android-24;google_apis;x86_64"
+            run_on: "refs/heads/feature/,refs/heads/develop"
+          - name: "Android Tests (15)"
+            android_version: "15"
+            api_level: 35
+            pixel: "7a"
+            system_image: "system-images;android-35;google_apis_playstore;x86_64"
+            run_on: "refs/heads/develop"
+    
+    name: ${{ matrix.name }} - ${{ github.ref_name }}
+    runs-on: macos-13
+    steps:
+      - name: Checkout code
+        if: contains(matrix.run_on, github.ref)
+        uses: actions/checkout@v4
+
+      - name: Run tests
+        uses: ./.github/workflows/android-multi-version-test.yml
+        with:
+          android_version: ${{ matrix.android_version }}
+          api_level: ${{ matrix.api_level }}
+          pixel: ${{ matrix.pixel }}
+          system_image: ${{ matrix.system_image }}
+          runner_type: macos-13
+          architecture: x86_64
+          java_version: 17
+          gradle_version: "8.12.1"
+          timezone: "America/Sao_Paulo"
+          language: "en_US.UTF-8"
+          locale: "en_US.UTF-8"
+          max_parallel: 1
+          timeout-minutes: 25
+          commit_hash: ${{ github.sha }}
+          emulator_count: 1
+          sequential_boot: true
