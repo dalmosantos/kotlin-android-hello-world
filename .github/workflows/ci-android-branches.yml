@@ -12,8 +12,8 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: "Android Tests (7.1.1)"
-            android_version: "7.1.1"
+          - name: "Android Tests (7.1.2)"
+            android_version: "7.1.2"
             api_level: 25
             pixel: "xl"
             system_image: "system-images;android-25;google_apis;x86_64"
@@ -43,8 +43,8 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: "Android Tests (7.1.1)"
-            android_version: "7.1.1"
+          - name: "Android Tests (7.1.2)"
+            android_version: "7.1.2"
             api_level: 25
             pixel: "xl"
             system_image: "system-images;android-25;google_apis;x86_64"
