@@ -397,12 +397,16 @@ jobs:
             exit 0
           fi
 
-          declare -A APPS=(
-            [chrome]="https://www.apkmirror.com/apk/google-inc/chrome/"
-            [webview]="https://www.apkmirror.com/apk/google-inc/android-system-webview/"
-            [maps]="https://www.apkmirror.com/apk/google-inc/maps/"
-            [gboard]="https://www.apkmirror.com/apk/google-inc/gboard/"
-          )
+          # Portable function to get app URL (no associative arrays)
+          get_app_url() {
+            case "$1" in
+              chrome)  echo "https://www.apkmirror.com/apk/google-inc/chrome/" ;;
+              webview) echo "https://www.apkmirror.com/apk/google-inc/android-system-webview/" ;;
+              maps)    echo "https://www.apkmirror.com/apk/google-inc/maps/" ;;
+              gboard)  echo "https://www.apkmirror.com/apk/google-inc/gboard/" ;;
+              *)       echo ""; return 1 ;;
+            esac
+          }
 
           # Generic function to get the APK download link
           get_latest_apk_url() {
@@ -434,7 +438,8 @@ jobs:
           download_and_install_apk() {
             local app_id="$1"
             local app_label="$2"
-            local app_url="${APPS[$app_id]}"
+            local app_url
+            app_url=$(get_app_url "$app_id")
             local apk_name="$app_id.apk"
 
             echo "Downloading latest $app_label..."
@@ -470,7 +475,6 @@ jobs:
           done
 
           echo "Google Apps update process finished."
-
 
       - name: Install APKs
         timeout-minutes: 8
