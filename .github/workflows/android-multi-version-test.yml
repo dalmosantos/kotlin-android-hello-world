@@ -279,7 +279,7 @@ jobs:
                 exit 1
               fi
             done
-            echo "All emulators have been started. Please wait for full boot in the next step."
+          echo "All emulators have been started. Please wait for full boot in the next step."
             sleep 60
           fi
           
@@ -364,12 +364,20 @@ jobs:
           for port in "${EMULATOR_PORTS_ARRAY[@]}"; do
             echo "🔧 Configuring emulator-$port..."
 
-            # Set timezone, language, and locale
-            adb -s emulator-$port shell setprop persist.sys.timezone $TZ 2>/dev/null || true
-            adb -s emulator-$port shell setprop persist.sys.language ${LANG%%_*} 2>/dev/null || true
-            adb -s emulator-$port shell setprop persist.sys.country ${LANG#*_} 2>/dev/null || true
-            adb -s emulator-$port shell setprop persist.sys.locale $LC_ALL 2>/dev/null || true
-            adb -s emulator-$port shell am broadcast -a android.intent.action.LOCALE_CHANGED 2>/dev/null || true
+            # Set timezone, language, and locale - multiple methods
+            adb -s emulator-$port shell "setprop persist.sys.timezone '$TZ' && setprop persist.sys.language '${LANG%%_*}' && setprop persist.sys.country '${LANG#*_}' && setprop persist.sys.locale '$LC_ALL'" || true
+            
+            # Alternative method using settings
+            adb -s emulator-$port shell settings put system system_locales "$LC_ALL" || true
+            adb -s emulator-$port shell settings put system time_12_24 "" || true  # Reset to auto
+            
+            # Force language change through am command
+            adb -s emulator-$port shell "am broadcast -a android.intent.action.LOCALE_CHANGED --ez extra_restart true" || true
+            
+            # Verify settings
+            echo "Current settings:"
+            adb -s emulator-$port shell getprop | grep -E "persist.sys.(timezone|language|country|locale)" || true
+            adb -s emulator-$port shell settings get system system_locales || true
             
             # Disable animations and optimize for testing
             adb -s emulator-$port shell settings put global window_animation_scale 0 2>/dev/null || true
