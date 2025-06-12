@@ -213,92 +213,76 @@ jobs:
       - name: Start emulators
         run: |
           set -euo pipefail
-          
-          # Create a directory for emulator logs
+
+          echo "🧱 Preparing emulator startup with ${EMULATOR_COUNT} instance(s)..."
           mkdir -p ${{ env.ARTIFACTS_BASE_PATH }}/emulator-logs
-
-          # Check acceleration support
-          $ANDROID_HOME/emulator/emulator -accel-check || true
           adb start-server
-          
-          # Generate emulator ports
-          EMULATOR_PORTS_ARRAY=($(seq 5554 2 $((5554 + (EMULATOR_COUNT - 1) * 2))))
-                   
-          # Parse LANG for language and country codes for emulator properties
-          PARSED_EMU_LANG_CODE=$(echo "$LANG" | cut -d'_' -f1)
-          PARSED_EMU_COUNTRY_CODE=$(echo "$LANG" | cut -d'_' -f2 | cut -d'.' -f1)
 
-          # Common emulator options with TZ, LANG, LC_ALL
-          EMULATOR_COMMON_OPTS="-no-window -gpu swiftshader -timezone \"$TZ\" \
-            -no-snapshot -no-audio -no-boot-anim \
-            -netdelay none -netspeed full \
-            -camera-back none -camera-front none \
-            -no-passive-gps -no-location-ui \
-            -qt-hide-window -grpc-use-token -idle-grpc-timeout \
-            -no-jni -no-snapshot-load -no-snapshot-save \
-            -memory $MEMORY_SIZE \
-            -partition-size 2048 \
-            -cache-size 1024 \
-            -accel on \
-            -prop persist.sys.timezone=$TZ \
-            -prop persist.sys.language=$PARSED_EMU_LANG_CODE \
-            -prop persist.sys.country=$PARSED_EMU_COUNTRY_CODE \
-            -prop persist.sys.locale=$(echo "$LC_ALL" | cut -d'.' -f1 | sed 's/_/-/') " # Use BCP-47 for persist.sys.locale
-          echo "ℹ️ Common Emulator Options: $EMULATOR_COMMON_OPTS"
-
-          if [[ "$SEQUENTIAL_BOOT" == "true" ]]; then
-            echo "Starting emulators sequentially..."
-            for i in "${!EMULATOR_PORTS_ARRAY[@]}"; do
-              port=${EMULATOR_PORTS_ARRAY[$i]}
-              avd_name="Pixel_${{ inputs.pixel }}_API_${{ inputs.api_level }}_Emulator_$i"
-              echo " "
-              echo "==== Starting emulator $avd_name on port $port ====" 
-              echo " "
-              echo "🚀 Launching emulator $avd_name on port $port..."
-              EMULATOR_LOG_FILE="${{ env.ARTIFACTS_BASE_PATH }}/emulator-logs/emulator-${port}-start.log"
-              $ANDROID_HOME/emulator/emulator -avd $avd_name -port "$port" $EMULATOR_COMMON_OPTS \
-                -qemu -smp 2 &> "$EMULATOR_LOG_FILE" &
-              EMU_PID=$!
-              echo "PID for $avd_name: $EMU_PID"
-              sleep 5
-              if ! ps -p $EMU_PID > /dev/null; then
-                echo "❌ Failed to launch emulator process $avd_name on port $port. Check log: $EMULATOR_LOG_FILE"
-                exit 1
-              fi
-              echo "✅ Emulator process $avd_name (PID: $EMU_PID) launched on port $port. Boot sequence will be monitored in a later step."
-              echo "   Startup logs for this emulator are being captured in: $EMULATOR_LOG_FILE"
-              
-              # Wait before starting next emulator
-              [[ $i -lt $((${#EMULATOR_PORTS_ARRAY[@]} - 1)) ]] && sleep 60
-            done
-          else
-            echo "Starting all emulators simultaneously..."
-            for i in "${!EMULATOR_PORTS_ARRAY[@]}"; do
-              port=${EMULATOR_PORTS_ARRAY[$i]}
-              avd_name="Pixel_${{ inputs.pixel }}_API_${{ inputs.api_level }}_Emulator_$i"
-              echo " "
-              echo "==== Starting emulator $avd_name on port $port ====" 
-              echo " "
-              echo "🚀 Launching emulator $avd_name on port $port..."
-              EMULATOR_LOG_FILE="${{ env.ARTIFACTS_BASE_PATH }}/emulator-logs/emulator-${port}-start.log"
-              $ANDROID_HOME/emulator/emulator -avd $avd_name -port "$port" $EMULATOR_COMMON_OPTS \
-                -qemu -smp 2 &> "$EMULATOR_LOG_FILE" &
-              EMU_PID=$!
-              echo "PID for $avd_name: $EMU_PID"
-              sleep 5
-              if ! ps -p $EMU_PID > /dev/null; then
-                echo "❌ Failed to launch emulator process $avd_name on port $port. Check log: $EMULATOR_LOG_FILE"
-                exit 1
-              fi
-              echo "✅ Emulator process $avd_name (PID: $EMU_PID) launched on port $port. Boot sequence will be monitored in a later step."
-              echo "   Startup logs for this emulator are being captured in: $EMULATOR_LOG_FILE"
-            done
-          echo "All emulators have been started. Please wait for full boot in the next step."
-            sleep 60
-          fi
-          
-          # Export ports list for subsequent steps
+          read -ra EMULATOR_PORTS_ARRAY <<< "$(seq 5554 2 $((5554 + (EMULATOR_COUNT - 1) * 2)))"
           echo "EMULATOR_PORTS_LIST=${EMULATOR_PORTS_ARRAY[*]}" >> $GITHUB_ENV
+
+          PARSED_LANG=$(echo "$LANG" | cut -d'_' -f1)
+          PARSED_COUNTRY=$(echo "$LANG" | cut -d'_' -f2 | cut -d'.' -f1)
+          BCP47_LOCALE="${PARSED_LANG}-${PARSED_COUNTRY}"
+
+          for i in "${!EMULATOR_PORTS_ARRAY[@]}"; do
+            port=${EMULATOR_PORTS_ARRAY[$i]}
+            avd_name="Pixel_${{ inputs.pixel }}_API_${{ inputs.api_level }}_Emulator_$i"
+            log_file="${{ env.ARTIFACTS_BASE_PATH }}/emulator-logs/emulator-${port}-start.log"
+            echo "🚀 Starting $avd_name on port $port"
+
+            $ANDROID_HOME/emulator/emulator -avd "$avd_name" -port "$port" \
+              -no-window -no-audio -no-snapshot -no-boot-anim \
+              -gpu swiftshader_indirect \
+              -memory "$MEMORY_SIZE" \
+              -partition-size 2048 \
+              -cache-size 1024 \
+              -accel on \
+              -prop persist.sys.timezone="$TZ" \
+              -prop persist.sys.language="$PARSED_LANG" \
+              -prop persist.sys.country="$PARSED_COUNTRY" \
+              -prop persist.sys.locale="$BCP47_LOCALE" \
+              -qemu -smp 2 &> "$log_file" &
+
+            EMU_PID=$!
+            echo "🆔 PID for $avd_name: $EMU_PID"
+            sleep 5
+
+            if ! ps -p $EMU_PID > /dev/null; then
+              echo "❌ Failed to start emulator $avd_name (port $port). Log:"
+              tail -n 50 "$log_file"
+              exit 1
+            fi
+
+            echo "✅ Emulator $avd_name launched."
+
+            if [[ "$SEQUENTIAL_BOOT" == "true" && $i -lt $((${#EMULATOR_PORTS_ARRAY[@]} - 1)) ]]; then
+              echo "⏳ Waiting before next boot..."
+              sleep 60
+            fi
+          done
+
+          echo "⏰ Waiting 60s to allow emulators to boot partially before applying locale fix..."
+          sleep 60
+
+          for port in "${EMULATOR_PORTS_ARRAY[@]}"; do
+            echo "🔧 Reapplying locale/timezone settings + reboot on emulator-$port..."
+
+            adb -s emulator-$port wait-for-device
+            adb -s emulator-$port shell "setprop persist.sys.timezone '$TZ'"
+            adb -s emulator-$port shell "setprop persist.sys.language '$PARSED_LANG'"
+            adb -s emulator-$port shell "setprop persist.sys.country '$PARSED_COUNTRY'"
+            adb -s emulator-$port shell "setprop persist.sys.locale '$BCP47_LOCALE'"
+            adb -s emulator-$port shell settings put system system_locales "$BCP47_LOCALE"
+
+            echo "🔁 Restarting zygote to apply changes..."
+            adb -s emulator-$port shell "stop; sleep 5; start"
+
+            # echo "⏳ Waiting for emulator-$port to be ready again..."
+            # adb -s emulator-$port wait-for-device
+          done
+
+          echo "✅ All emulators started and configured with locale + timezone."
 
       - name: Wait for emulators to boot
         timeout-minutes: 20
@@ -374,83 +358,39 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Parse target language and locale from inputs (e.g., en_US.UTF-8)
-          # Android system properties and settings require specific formats (e.g., 'en', 'US', 'en-US').
-          TARGET_LANG_INPUT="${{ inputs.language }}" # e.g., en_US.UTF-8
-          TARGET_LANG_CODE=$(echo "$TARGET_LANG_INPUT" | cut -d'_' -f1) # e.g., en
-          TARGET_COUNTRY_CODE=$(echo "$TARGET_LANG_INPUT" | cut -d'_' -f2 | cut -d'.' -f1) # e.g., US
-          TARGET_BCP47_LOCALE="${TARGET_LANG_CODE}-${TARGET_COUNTRY_CODE}" # e.g., en-US
+          # Parse language and locale from inputs (e.g., en_US.UTF-8)
+          TARGET_LANG_INPUT="${{ inputs.language }}"
+          TARGET_LANG_CODE=$(echo "$TARGET_LANG_INPUT" | cut -d'_' -f1)
+          TARGET_COUNTRY_CODE=$(echo "$TARGET_LANG_INPUT" | cut -d'_' -f2 | cut -d'.' -f1)
+          TARGET_BCP47_LOCALE="${TARGET_LANG_CODE}-${TARGET_COUNTRY_CODE}"
 
-          # Convert space-separated string to array
           read -ra EMULATOR_PORTS_ARRAY <<< "$EMULATOR_PORTS_LIST"
           
           for port in "${EMULATOR_PORTS_ARRAY[@]}"; do
-            echo "🔧 Configuring emulator-$port..."
-            echo "Host ENV: TZ=$TZ, LANG (from input)=${{ inputs.language }}, LC_ALL (from input)=${{ inputs.locale }}"
-            echo "Target Android settings: Timezone=$TZ, Language=$TARGET_LANG_CODE, Country=$TARGET_COUNTRY_CODE, Locale (BCP 47)=$TARGET_BCP47_LOCALE"
+            echo "🔧 Configurando emulator-$port..."
 
-            # Timezone: Emulator is started with -timezone and -prop persist.sys.timezone.
-            # This section verifies and can optionally try to set it again if needed.
-            CURRENT_TZ_PROP=$(adb -s emulator-$port shell getprop persist.sys.timezone 2>/dev/null || echo "unknown")
-            echo "Initial 'persist.sys.timezone' from getprop: $CURRENT_TZ_PROP"
-            if [ "$CURRENT_TZ_PROP" != "$TZ" ]; then
-              echo "Warning: 'persist.sys.timezone' ($CURRENT_TZ_PROP) does not match target '$TZ'."
-              echo "Attempting to set 'persist.sys.timezone' to '$TZ' via adb shell."
-              adb -s emulator-$port shell "setprop persist.sys.timezone '$TZ'" || echo "Failed to set persist.sys.timezone via adb."
-              # Note: A full Zygote restart ('stop; start') might be needed for changes to fully apply system-wide.
-            fi
+            # Apenas reforça o locale via settings (API >= 24)
+            echo "Definindo 'system_locales' para '$TARGET_BCP47_LOCALE' (API ${{ inputs.api_level }})"
+            adb -s emulator-$port shell settings put system system_locales "$TARGET_BCP47_LOCALE" || true
 
-            # Locale: Set persist properties for language, country, and BCP-47 locale.
-            # These are also typically set via emulator startup parameters. This step reinforces them.
-            echo "Setting persist locale properties: lang=$TARGET_LANG_CODE, country=$TARGET_COUNTRY_CODE, locale=$TARGET_BCP47_LOCALE"
-            adb -s emulator-$port shell "setprop persist.sys.language '$TARGET_LANG_CODE'; \
-                                         setprop persist.sys.country '$TARGET_COUNTRY_CODE'; \
-                                         setprop persist.sys.locale '$TARGET_BCP47_LOCALE'" || echo "Warning: Failed to set one or more persist locale properties."
-            
-            # For Android N (API 24) and above, 'settings put system system_locales' is the way to set locales.
-            # The value should be a BCP-47 language tag list (e.g., "en-US").
-            echo "Attempting to set 'system_locales' to '$TARGET_BCP47_LOCALE' for API ${{ inputs.api_level }}"
-            adb -s emulator-$port shell settings put system system_locales "$TARGET_BCP47_LOCALE" || echo "Warning: 'settings put system system_locales' failed. This might be due to permissions or device state."
-            
-            adb -s emulator-$port shell settings put system time_12_24 "" || true  # Reset to auto
-            
-            # Attempt to broadcast LOCALE_CHANGED. This often fails due to permissions on non-rooted/user emulators.
-            echo "Attempting to broadcast LOCALE_CHANGED (may fail due to permissions)..."
-            adb -s emulator-$port shell "am broadcast -a android.intent.action.LOCALE_CHANGED --ez extra_restart true" || echo "LOCALE_CHANGED broadcast failed as expected on some systems (permission denial is common)."
-
-            echo "Verifying settings on emulator-$port after configuration attempts:"
-            echo -n "persist.sys.timezone: "; adb -s emulator-$port shell getprop persist.sys.timezone
-            echo -n "persist.sys.language: "; adb -s emulator-$port shell getprop persist.sys.language
-            echo -n "persist.sys.country: "; adb -s emulator-$port shell getprop persist.sys.country
-            echo -n "persist.sys.locale: "; adb -s emulator-$port shell getprop persist.sys.locale
-            echo -n "system_locales: "; adb -s emulator-$port shell settings get system system_locales
-            echo -n "Current date command output: "; adb -s emulator-$port shell date
-            
-            # Disable animations and optimize for testing (keep || true as these are non-critical optimizations)
+            # Desabilita animações para testes
             adb -s emulator-$port shell settings put global window_animation_scale 0 2>/dev/null || true
             adb -s emulator-$port shell settings put global transition_animation_scale 0 2>/dev/null || true
             adb -s emulator-$port shell settings put global animator_duration_scale 0 2>/dev/null || true
-            
-            # Security and API settings (keep || true)
-            adb -s emulator-$port shell settings put global hidden_api_policy 1 2>/dev/null || true
-            adb -s emulator-$port shell settings put global hidden_api_policy_pre_p_apps 1 2>/dev/null || true
-            adb -s emulator-$port shell settings put global hidden_api_policy_p_apps 1 2>/dev/null || true
-            
-            # Power and display settings (keep || true)
+
+            # Otimizações para testes
             adb -s emulator-$port shell settings put system screen_off_timeout 1800000 2>/dev/null || true
             adb -s emulator-$port shell svc power stayon true 2>/dev/null || true
-            
-            # Testing optimizations (keep || true)
-            adb -s emulator-$port shell settings put global force_resizable_activities 1 2>/dev/null || true
-            adb -s emulator-$port shell settings put global enable_freeform_support 1 2>/dev/null || true
-            
-            echo "✅ Configuration completed for emulator-$port"
+
+            echo "Verificando configurações:"
+            echo -n "system_locales: "; adb -s emulator-$port shell settings get system system_locales
+            echo -n "timezone: "; adb -s emulator-$port shell getprop persist.sys.timezone
+            echo "✅ emulator-$port configurado"
           done
           
           sleep 8
-          echo "✨ All emulator configurations completed successfully!"
+          echo "✨ Configuração dos emuladores finalizada!"
 
-  
       - name: Install APKs
         timeout-minutes: 8
         run: |
