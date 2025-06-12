@@ -210,10 +210,6 @@ jobs:
           # Export the ports for other steps to use
           echo "EMULATOR_PORTS_LIST=${EMULATOR_PORTS_ARRAY[*]}" >> $GITHUB_ENV
 
-      - name: Prepare emulator ports array
-        run: |
-          # Padroniza a conversão de string para array para os próximos steps
-          echo 'read -ra EMULATOR_PORTS_ARRAY <<< "$EMULATOR_PORTS_LIST"' >> $GITHUB_ENV
 
       - name: Start emulators
         run: |
@@ -222,7 +218,7 @@ jobs:
           echo "🧱 Preparing emulator startup with ${EMULATOR_COUNT} instance(s)..."
           mkdir -p ${{ env.ARTIFACTS_BASE_PATH }}/emulator-logs
           adb start-server
-
+          
           read -ra EMULATOR_PORTS_ARRAY <<< "$(seq 5554 2 $((5554 + (EMULATOR_COUNT - 1) * 2)))"
           echo "EMULATOR_PORTS_LIST=${EMULATOR_PORTS_ARRAY[*]}" >> $GITHUB_ENV
 
