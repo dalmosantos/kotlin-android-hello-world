@@ -210,6 +210,11 @@ jobs:
           # Export the ports for other steps to use
           echo "EMULATOR_PORTS_LIST=${EMULATOR_PORTS_ARRAY[*]}" >> $GITHUB_ENV
 
+      - name: Prepare emulator ports array
+        run: |
+          # Padroniza a conversão de string para array para os próximos steps
+          echo 'read -ra EMULATOR_PORTS_ARRAY <<< "$EMULATOR_PORTS_LIST"' >> $GITHUB_ENV
+
       - name: Start emulators
         run: |
           set -euo pipefail
@@ -220,10 +225,6 @@ jobs:
 
           read -ra EMULATOR_PORTS_ARRAY <<< "$(seq 5554 2 $((5554 + (EMULATOR_COUNT - 1) * 2)))"
           echo "EMULATOR_PORTS_LIST=${EMULATOR_PORTS_ARRAY[*]}" >> $GITHUB_ENV
-
-          PARSED_LANG=$(echo "$LANG" | cut -d'_' -f1)
-          PARSED_COUNTRY=$(echo "$LANG" | cut -d'_' -f2 | cut -d'.' -f1)
-          BCP47_LOCALE="${PARSED_LANG}-${PARSED_COUNTRY}"
 
           for i in "${!EMULATOR_PORTS_ARRAY[@]}"; do
             port=${EMULATOR_PORTS_ARRAY[$i]}
@@ -245,7 +246,6 @@ jobs:
               -qemu -smp 2 &> "$log_file" &
 
             EMU_PID=$!
-            echo "🆔 PID for $avd_name: $EMU_PID"
             sleep 5
 
             if ! ps -p $EMU_PID > /dev/null; then
@@ -264,25 +264,6 @@ jobs:
 
           echo "⏰ Waiting 60s to allow emulators to boot partially before applying locale fix..."
           sleep 60
-
-          for port in "${EMULATOR_PORTS_ARRAY[@]}"; do
-            echo "🔧 Reapplying locale/timezone settings + reboot on emulator-$port..."
-
-            adb -s emulator-$port wait-for-device
-            adb -s emulator-$port shell "setprop persist.sys.timezone '$TZ'"
-            adb -s emulator-$port shell "setprop persist.sys.language '$PARSED_LANG'"
-            adb -s emulator-$port shell "setprop persist.sys.country '$PARSED_COUNTRY'"
-            adb -s emulator-$port shell "setprop persist.sys.locale '$BCP47_LOCALE'"
-            adb -s emulator-$port shell settings put system system_locales "$BCP47_LOCALE"
-
-            echo "🔁 Restarting zygote to apply changes..."
-            adb -s emulator-$port shell "stop; sleep 5; start"
-
-            # echo "⏳ Waiting for emulator-$port to be ready again..."
-            # adb -s emulator-$port wait-for-device
-          done
-
-          echo "✅ All emulators started and configured with locale + timezone."
 
       - name: Wait for emulators to boot
         timeout-minutes: 20
@@ -358,20 +339,15 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Parse language and locale from inputs (e.g., en_US.UTF-8)
-          TARGET_LANG_INPUT="${{ inputs.language }}"
-          TARGET_LANG_CODE=$(echo "$TARGET_LANG_INPUT" | cut -d'_' -f1)
-          TARGET_COUNTRY_CODE=$(echo "$TARGET_LANG_INPUT" | cut -d'_' -f2 | cut -d'.' -f1)
-          TARGET_BCP47_LOCALE="${TARGET_LANG_CODE}-${TARGET_COUNTRY_CODE}"
-
+          # Padroniza a conversão de array
           read -ra EMULATOR_PORTS_ARRAY <<< "$EMULATOR_PORTS_LIST"
-          
           for port in "${EMULATOR_PORTS_ARRAY[@]}"; do
-            echo "🔧 Configurando emulator-$port..."
-
-            # Apenas reforça o locale via settings (API >= 24)
-            echo "Definindo 'system_locales' para '$TARGET_BCP47_LOCALE' (API ${{ inputs.api_level }})"
-            adb -s emulator-$port shell settings put system system_locales "$TARGET_BCP47_LOCALE" || true
+            # Configurações de locale/timezone
+            adb -s emulator-$port shell "setprop persist.sys.timezone '$TZ'"
+            adb -s emulator-$port shell "setprop persist.sys.language '$PARSED_LANG'"
+            adb -s emulator-$port shell "setprop persist.sys.country '$PARSED_COUNTRY'"
+            adb -s emulator-$port shell "setprop persist.sys.locale '$BCP47_LOCALE'"
+            adb -s emulator-$port shell settings put system system_locales "$BCP47_LOCALE" || true
 
             # Desabilita animações para testes
             adb -s emulator-$port shell settings put global window_animation_scale 0 2>/dev/null || true
@@ -382,14 +358,10 @@ jobs:
             adb -s emulator-$port shell settings put system screen_off_timeout 1800000 2>/dev/null || true
             adb -s emulator-$port shell svc power stayon true 2>/dev/null || true
 
-            echo "Verificando configurações:"
-            echo -n "system_locales: "; adb -s emulator-$port shell settings get system system_locales
-            echo -n "timezone: "; adb -s emulator-$port shell getprop persist.sys.timezone
-            echo "✅ emulator-$port configurado"
+            # Reinicia zygote para aplicar tudo
+            adb -s emulator-$port shell "stop; sleep 5; start"
           done
-          
           sleep 8
-          echo "✨ Configuração dos emuladores finalizada!"
 
       - name: Install APKs
         timeout-minutes: 8
@@ -519,27 +491,13 @@ jobs:
         if: always()
         run: |
           echo "🛑 Cleaning up emulators..."
-          
-          # Convert space-separated string to array (if available)
           if [[ -n "${EMULATOR_PORTS_LIST:-}" ]]; then
             read -ra EMULATOR_PORTS_ARRAY <<< "$EMULATOR_PORTS_LIST"
             for port in "${EMULATOR_PORTS_ARRAY[@]}"; do
-              echo "🛑 Stopping emulator-$port..."
               adb -s emulator-$port emu kill 2>/dev/null || echo "Emulator $port already stopped or not responding"
             done
           fi
-          
-          # Wait for graceful shutdown
           sleep 10
-          
-          # Kill any remaining emulator processes forcefully
           pkill -f "emulator" 2>/dev/null || echo "No emulator processes found"
-          
-          # Stop ADB server
           adb kill-server 2>/dev/null || true
-          
-          # Cleanup temporary files
-          rm -rf $ANDROID_HOME 2>/dev/null || true
-          rm -rf ~/.android 2>/dev/null || true
-          
           echo "✅ Cleanup completed"
