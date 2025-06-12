@@ -229,7 +229,7 @@ jobs:
           mkdir -p ${{ env.ARTIFACTS_BASE_PATH }}/emulator-logs
           adb start-server
           
-          read -ra EMULATOR_PORTS_ARRAY <<< "$(seq 5554 2 $((5554 + (EMULATOR_COUNT - 1) * 2)))"
+          EMULATOR_PORTS_ARRAY=($(seq 5554 2 $((5554 + (EMULATOR_COUNT - 1) * 2))))
           echo "EMULATOR_PORTS_LIST=${EMULATOR_PORTS_ARRAY[*]}" >> $GITHUB_ENV
 
           for i in "${!EMULATOR_PORTS_ARRAY[@]}"; do
@@ -243,6 +243,13 @@ jobs:
               -gpu swiftshader_indirect \
               -memory "$MEMORY_SIZE" \
               -partition-size 2048 \
+              -cache-size 1024 \
+              -accel on \
+              -prop persist.sys.timezone="$TZ" \
+              -prop persist.sys.language="$PARSED_LANG" \
+              -prop persist.sys.country="$PARSED_COUNTRY" \
+              -prop persist.sys.locale="$BCP47_LOCALE" \
+              -qemu -smp 2 &> "$log_file" &n-size 2048 \
               -cache-size 1024 \
               -accel on \
               -prop persist.sys.timezone="$TZ" \
@@ -344,6 +351,12 @@ jobs:
       - name: Configure emulator system settings
         run: |
           set -euo pipefail
+
+          # Parse language and country from LANG/LC_ALL for emulator props
+          LANG_ENV="${LANG:-${LC_ALL:-en_US.UTF-8}}"
+          PARSED_LANG=$(echo "$LANG_ENV" | awk -F'[_\.]' '{print $1}')
+          PARSED_COUNTRY=$(echo "$LANG_ENV" | awk -F'[_\.]' '{print $2}')
+          BCP47_LOCALE="${PARSED_LANG}-${PARSED_COUNTRY}"
 
           # Padroniza a conversão de array
           read -ra EMULATOR_PORTS_ARRAY <<< "$EMULATOR_PORTS_LIST"
