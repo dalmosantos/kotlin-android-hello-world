@@ -215,6 +215,16 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Parse language and country from LANG/LC_ALL for emulator props
+          LANG_ENV="${LANG:-${LC_ALL:-en_US.UTF-8}}"
+          PARSED_LANG=$(echo "$LANG_ENV" | awk -F'[_\.]' '{print $1}')
+          PARSED_COUNTRY=$(echo "$LANG_ENV" | awk -F'[_\.]' '{print $2}')
+          BCP47_LOCALE="${PARSED_LANG}-${PARSED_COUNTRY}"
+
+          export PARSED_LANG
+          export PARSED_COUNTRY
+          export BCP47_LOCALE
+
           echo "🧱 Preparing emulator startup with ${EMULATOR_COUNT} instance(s)..."
           mkdir -p ${{ env.ARTIFACTS_BASE_PATH }}/emulator-logs
           adb start-server
