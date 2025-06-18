@@ -95,7 +95,6 @@ jobs:
       LANG: ${{ inputs.language }}
       LC_ALL: ${{ inputs.locale }}
       EMULATOR_COUNT: ${{ inputs.emulator_count }}
-      MEMORY_SIZE: ${{ inputs.api_level <= 26 && '2048' || '3584' }}
       SEQUENTIAL_BOOT: ${{ inputs.sequential_boot }}
       # Adiciona variáveis para múltiplos emuladores
       ANDROID_VERSIONS: ${{ inputs.android_version }}
@@ -155,28 +154,50 @@ jobs:
       - name: Detect compatible build-tools version
         id: buildtools
         run: |
-          api=${{ inputs.api_level }}
+          # If multiple API levels are provided (e.g., "28,35"), use the highest to find compatible build-tools.
+          # Otherwise, use the single provided API level.
+          if [[ "${{ inputs.api_level }}" == *","* ]]; then
+            api_to_check=$(echo "${{ inputs.api_level }}" | tr ',' '\n' | sort -nr | head -n1)
+            echo "Multiple API levels detected. Using highest API level $api_to_check to find build-tools."
+          else
+            api_to_check="${{ inputs.api_level }}"
+            echo "Single API level detected. Using API level $api_to_check to find build-tools."
+          fi
+          
           sdkmanager --list | grep -o 'build-tools;[0-9.]*' | sed 's/build-tools;//' \
-            | sort -V | grep "^$api[.]" | tail -1 | while read version; do
+            | sort -V | grep "^$api_to_check[.]" | tail -1 | while read version; do
                 echo "BUILD_TOOLS_VERSION=$version" >> $GITHUB_ENV
             done
-          echo "Using build-tools $BUILD_TOOLS_VERSION for API $api"
-
-      - name: Set system image based on architecture
-        run: |
-          echo "SYSTEM_IMAGE=${{ inputs.system_image }}" >> $GITHUB_ENV
+          
+          if [[ -z "${BUILD_TOOLS_VERSION:-}" ]]; then
+            echo "Warning: Could not automatically detect a build-tools version for API $api_to_check."
+            echo "Gradle will use the version specified in the project or its default."
+          else
+            echo "Using build-tools $BUILD_TOOLS_VERSION (detected for API $api_to_check)"
+          fi
 
       - name: Accept licenses and install SDK components
         run: |
           printf "y\ny\ny\ny\ny\ny\ny\ny\n" | sdkmanager --licenses > /dev/null
           sdkmanager --update --channel=0
+          
+          INSTALL_PACKAGES=("tools" "platform-tools" "emulator")
+          if [[ -n "${BUILD_TOOLS_VERSION:-}" ]]; then
+            INSTALL_PACKAGES+=("build-tools;${BUILD_TOOLS_VERSION}")
+          else
+            echo "BUILD_TOOLS_VERSION not set, skipping explicit build-tools installation by sdkmanager."
+          fi
+
+          IFS=',' read -ra API_LEVELS_TO_INSTALL <<< "${API_LEVELS}" # API_LEVELS from env, which is inputs.api_level
+          for single_api_level in "${API_LEVELS_TO_INSTALL[@]}"; do
+            INSTALL_PACKAGES+=("platforms;android-${single_api_level}")
+          done
+
+          IFS=',' read -ra SYSTEM_IMAGES_TO_INSTALL <<< "${SYSTEM_IMAGES}" # SYSTEM_IMAGES from env, which is inputs.system_image
+          INSTALL_PACKAGES+=("${SYSTEM_IMAGES_TO_INSTALL[@]}")
+          
           sdkmanager --install --channel=0 \
-            "tools" \
-            "build-tools;${{ env.BUILD_TOOLS_VERSION }}" \
-            "platform-tools" \
-            "platforms;android-${{ inputs.api_level }}" \
-            "${{ env.SYSTEM_IMAGE }}" \
-            "emulator"
+            "${INSTALL_PACKAGES[@]}"
             
       - name: Build project
         run: |
@@ -244,12 +265,18 @@ jobs:
             api_level=${API_LEVELS_ARR[$i]}
             avd_name="Pixel_3a_API_${api_level}_Emulator_$i"
             log_file="${{ env.ARTIFACTS_BASE_PATH }}/emulator-logs/emulator-${port}-start.log"
-            echo "🚀 Starting $avd_name on port $port"
+            
+            # Determine memory size based on the current emulator's API level
+            current_memory_size="3584" # Default
+            if [[ "$api_level" -le 26 ]]; then
+              current_memory_size="2048"
+            fi
 
+            echo "🚀 Starting $avd_name on port $port"
             $ANDROID_HOME/emulator/emulator -avd "$avd_name" -port "$port" \
               -no-window -no-audio -no-snapshot -no-boot-anim \
               -gpu swiftshader_indirect \
-              -memory "$MEMORY_SIZE" \
+              -memory "$current_memory_size" \
               -partition-size 2048 \
               -cache-size 1024 \
               -accel on \
@@ -479,15 +506,19 @@ jobs:
         run: |
           mkdir -p ${{ env.ARTIFACTS_BASE_PATH }}/screenshots
           
-          # Convert space-separated string to array
           read -ra EMULATOR_PORTS_ARRAY <<< "$EMULATOR_PORTS_LIST"
-          for port in "${EMULATOR_PORTS_ARRAY[@]}"; do
-            echo "📸 Taking screenshot from emulator-$port..."
+          # API_LEVELS comes from ${{ inputs.api_level }}
+          IFS=',' read -ra API_LEVELS_ARR_SS <<< "${API_LEVELS}"
+
+          for idx in "${!EMULATOR_PORTS_ARRAY[@]}"; do
+            port=${EMULATOR_PORTS_ARRAY[$idx]}
+            current_api_level=${API_LEVELS_ARR_SS[$idx]:-${inputs.api_level}} # Fallback if array is misaligned, though it shouldn't be
+            echo "📸 Taking screenshot from emulator-$port (API $current_api_level)..."
             echo "Timezone: $(adb -s emulator-$port shell getprop persist.sys.timezone)"
             echo "Language: $(adb -s emulator-$port shell getprop persist.sys.language)"
             echo "Country: $(adb -s emulator-$port shell getprop persist.sys.country)"
             echo "Locale: $(adb -s emulator-$port shell getprop persist.sys.locale)"
-            adb -s emulator-$port exec-out screencap -p > ${{ env.ARTIFACTS_BASE_PATH }}/screenshots/emulator-${{ inputs.api_level }}-$port.png 2>/dev/null || echo "Failed to capture screenshot from emulator-$port"
+            adb -s emulator-$port exec-out screencap -p > "${{ env.ARTIFACTS_BASE_PATH }}/screenshots/emulator-api-${current_api_level}-port-${port}.png" 2>/dev/null || echo "Failed to capture screenshot from emulator-$port"
           done
 
       - name: Upload screenshots
