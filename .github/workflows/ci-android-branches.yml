@@ -14,7 +14,7 @@ jobs:
     with:
       # Rodar ambos emuladores no mesmo runner, usando Pixel 3a (compatível API 28-35)
       android_version: "9,15"
-      api_level: "28,35"
+      api_level: [28,35]
       pixel: "3a"
       # system_image aceita múltiplos separados por vírgula
       system_image: "system-images;android-28;google_apis;x86_64,system-images;android-35;google_apis_playstore;x86_64"
