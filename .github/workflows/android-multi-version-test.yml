@@ -110,6 +110,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Sanitize API Level Input
+        id: sanitize_api_input
+        shell: bash
+        run: |
+          sanitized_api_levels=$(echo "${{ inputs.api_level }}" | sed 's/\[//g; s/\]//g; s/ //g')
+          echo "SANITIZED_API_LEVELS=${sanitized_api_levels}" >> $GITHUB_ENV
+          echo "Original api_level input: '${{ inputs.api_level }}'"
+          echo "Sanitized API_LEVELS set to: '${sanitized_api_levels}'"
+
       - name: Setup JDK ${{ inputs.java_version }}
         uses: actions/setup-java@v4
         with:
@@ -154,14 +163,15 @@ jobs:
       - name: Detect compatible build-tools version
         id: buildtools
         run: |
+          echo "Using SANITIZED_API_LEVELS: '${SANITIZED_API_LEVELS}' (original input: '${{ inputs.api_level }}')"
           # If multiple API levels are provided (e.g., "28,35"), use the highest to find compatible build-tools.
           # Otherwise, use the single provided API level.
-          if [[ "${{ inputs.api_level }}" == *","* ]]; then
-            api_to_check=$(echo "${{ inputs.api_level }}" | tr ',' '\n' | sort -nr | head -n1)
-            echo "Multiple API levels detected. Using highest API level $api_to_check to find build-tools."
+          if [[ "${SANITIZED_API_LEVELS}" == *","* ]]; then
+            api_to_check=$(echo "${SANITIZED_API_LEVELS}" | tr ',' '\n' | sort -nr | head -n1)
+            echo "Multiple API levels detected from sanitized input '${SANITIZED_API_LEVELS}'. Using highest API level $api_to_check to find build-tools."
           else
-            api_to_check="${{ inputs.api_level }}"
-            echo "Single API level detected. Using API level $api_to_check to find build-tools."
+            api_to_check="${SANITIZED_API_LEVELS}"
+            echo "Single API level detected from sanitized input '${SANITIZED_API_LEVELS}'. Using API level $api_to_check to find build-tools."
           fi
           
           sdkmanager --list | grep -o 'build-tools;[0-9.]*' | sed 's/build-tools;//' \
@@ -188,7 +198,8 @@ jobs:
             echo "BUILD_TOOLS_VERSION not set, skipping explicit build-tools installation by sdkmanager."
           fi
 
-          IFS=',' read -ra API_LEVELS_TO_INSTALL <<< "${API_LEVELS}" # API_LEVELS from env, which is inputs.api_level
+          echo "Preparing to install SDK platforms for SANITIZED_API_LEVELS: '${SANITIZED_API_LEVELS}'"
+          IFS=',' read -ra API_LEVELS_TO_INSTALL <<< "${SANITIZED_API_LEVELS}"
           for single_api_level in "${API_LEVELS_TO_INSTALL[@]}"; do
             INSTALL_PACKAGES+=("platforms;android-${single_api_level}")
           done
@@ -221,7 +232,8 @@ jobs:
       - name: Create AVDs
         run: |
           # Suporte a múltiplos emuladores
-          IFS=',' read -ra API_LEVELS_ARR <<< "${API_LEVELS}"
+          echo "Creating AVDs based on SANITIZED_API_LEVELS: '${SANITIZED_API_LEVELS}'"
+          IFS=',' read -ra API_LEVELS_ARR <<< "${SANITIZED_API_LEVELS}"
           IFS=',' read -ra SYSTEM_IMAGES_ARR <<< "${SYSTEM_IMAGES}"
           EMULATOR_PORTS_ARRAY=($(seq 5554 2 $((5554 + (${#API_LEVELS_ARR[@]} - 1) * 2))))
           for i in "${!API_LEVELS_ARR[@]}"; do
@@ -241,7 +253,8 @@ jobs:
       - name: Start emulators
         run: |
           set -euo pipefail
-          IFS=',' read -ra API_LEVELS_ARR <<< "${API_LEVELS}"
+          echo "Starting emulators based on SANITIZED_API_LEVELS: '${SANITIZED_API_LEVELS}'"
+          IFS=',' read -ra API_LEVELS_ARR <<< "${SANITIZED_API_LEVELS}"
           EMULATOR_PORTS_ARRAY=($(seq 5554 2 $((5554 + (${#API_LEVELS_ARR[@]} - 1) * 2))))
           # Parse language and country from LANG/LC_ALL for emulator props
           LANG_ENV="${LANG:-${LC_ALL:-en_US.UTF-8}}"
@@ -507,8 +520,8 @@ jobs:
           mkdir -p ${{ env.ARTIFACTS_BASE_PATH }}/screenshots
           
           read -ra EMULATOR_PORTS_ARRAY <<< "$EMULATOR_PORTS_LIST"
-          # API_LEVELS comes from ${{ inputs.api_level }}
-          IFS=',' read -ra API_LEVELS_ARR_SS <<< "${API_LEVELS}"
+          echo "Taking screenshots, using SANITIZED_API_LEVELS: '${SANITIZED_API_LEVELS}' for API level reference."
+          IFS=',' read -ra API_LEVELS_ARR_SS <<< "${SANITIZED_API_LEVELS}"
 
           for idx in "${!EMULATOR_PORTS_ARRAY[@]}"; do
             port=${EMULATOR_PORTS_ARRAY[$idx]}
