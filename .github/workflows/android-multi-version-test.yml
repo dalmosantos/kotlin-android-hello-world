@@ -9,8 +9,8 @@ on:
         description: 'Android version name'
       api_level:
         required: true
-        type: number
-        description: 'Android API level'
+        type: string
+        description: 'Android API level (can be a single value or array)'
       pixel:
         required: true
         type: string
@@ -90,7 +90,7 @@ jobs:
     env:
       ANDROID_HOME: ${{ github.workspace }}/android-sdk
       ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
-      ARTIFACTS_BASE_PATH: artifacts/${{ inputs.api_level }}
+      ARTIFACTS_BASE_PATH: artifacts/multi-api
       TZ: ${{ inputs.timezone }}
       LANG: ${{ inputs.language }}
       LC_ALL: ${{ inputs.locale }}
@@ -128,9 +128,9 @@ jobs:
             ~/.gradle/caches
             ~/.gradle/wrapper
             ${{ github.workspace }}/android-sdk
-          key: ${{ runner.os }}-android-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-${{ inputs.api_level }}-${{ inputs.gradle_version }}
+          key: ${{ runner.os }}-android-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}-multi-api-${{ inputs.gradle_version }}
           restore-keys: |
-            ${{ runner.os }}-android-gradle-${{ inputs.api_level }}-
+            ${{ runner.os }}-android-gradle-multi-api-
             ${{ runner.os }}-android-gradle-
             ${{ runner.os }}-android-
           fail-on-cache-miss: false
@@ -525,14 +525,14 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: screenshots-api-${{ inputs.api_level }}
+          name: screenshots-multi-api
           path: ${{ env.ARTIFACTS_BASE_PATH }}/screenshots/*.png
 
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results-api-${{ inputs.api_level }}
+          name: test-results-multi-api
           path: |
             app/build/reports/
             app/build/outputs/androidTest-results/
