@@ -7,24 +7,17 @@ on:
       - develop
 
 jobs:
-  android_tests_feature:
-    if: startsWith(github.ref_name, 'feature/')
-    strategy:
-      matrix:
-        include:
-          - name: "Android Tests (7.1.2)"
-            android_version: "7.1.2"
-            api_level: 25
-            pixel: "xl"
-            system_image: "system-images;android-25;google_apis;x86_64"
-
-    name: ${{ matrix.name }} - ${{ github.ref_name }}
+  android_tests_multi_version:
+    if: startsWith(github.ref_name, 'feature/') || github.ref_name == 'develop'
+    name: Android Tests (9 & 15) - ${{ github.ref_name }}
     uses: ./.github/workflows/android-multi-version-test.yml
     with:
-      android_version: ${{ matrix.android_version }}
-      api_level: ${{ matrix.api_level }}
-      pixel: ${{ matrix.pixel }}
-      system_image: ${{ matrix.system_image }}
+      # Rodar ambos emuladores no mesmo runner, usando Pixel 3a (compatível API 28-35)
+      android_version: "9,15"
+      api_level: "28,35"
+      pixel: "3a"
+      # system_image aceita múltiplos separados por vírgula
+      system_image: "system-images;android-28;google_apis;x86_64,system-images;android-35;google_apis_playstore;x86_64"
       runner_type: macos-13
       architecture: x86_64
       java_version: 17
@@ -33,43 +26,7 @@ jobs:
       language: "en_US.UTF-8"
       locale: "en_US.UTF-8"
       max_parallel: 1
-      timeout-minutes: 20
+      timeout-minutes: ${{ github.ref_name == 'develop' && 30 || 20 }}
       commit_hash: ${{ github.sha }}
-      emulator_count: 2
-      sequential_boot: true
-
-  android_tests_develop:
-    if: github.ref_name == 'develop'
-    strategy:
-      matrix:
-        include:
-          - name: "Android Tests (7.1.2)"
-            android_version: "7.1.2"
-            api_level: 25
-            pixel: "xl"
-            system_image: "system-images;android-25;google_apis;x86_64"
-          - name: "Android Tests (15)"
-            android_version: "15"
-            api_level: 35
-            pixel: "7a"
-            system_image: "system-images;android-35;google_apis_playstore;x86_64"
-
-    name: ${{ matrix.name }} - ${{ github.ref_name }}
-    uses: ./.github/workflows/android-multi-version-test.yml
-    with:
-      android_version: ${{ matrix.android_version }}
-      api_level: ${{ matrix.api_level }}
-      pixel: ${{ matrix.pixel }}
-      system_image: ${{ matrix.system_image }}
-      runner_type: macos-13
-      architecture: x86_64
-      java_version: 17
-      gradle_version: "8.12.1"
-      timezone: "America/Sao_Paulo"
-      language: "pt_BR.UTF-8"
-      locale: "pt_BR.UTF-8"
-      max_parallel: 1
-      timeout-minutes: 30
-      commit_hash: " "
       emulator_count: 2
       sequential_boot: true

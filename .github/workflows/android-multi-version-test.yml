@@ -43,12 +43,12 @@ on:
       language:
         required: true
         type: string
-        default: 'pt_BR.UTF-8'
+        default: 'en_US.UTF-8'
         description: 'Language setting'
       locale:
         required: true
         type: string
-        default: 'pt_BR.UTF-8'
+        default: 'en_US.UTF-8'
         description: 'Locale setting'
       max_parallel:
         required: true
@@ -97,6 +97,11 @@ jobs:
       EMULATOR_COUNT: ${{ inputs.emulator_count }}
       MEMORY_SIZE: ${{ inputs.api_level <= 26 && '2048' || '3584' }}
       SEQUENTIAL_BOOT: ${{ inputs.sequential_boot }}
+      # Adiciona variáveis para múltiplos emuladores
+      ANDROID_VERSIONS: ${{ inputs.android_version }}
+      API_LEVELS: ${{ inputs.api_level }}
+      SYSTEM_IMAGES: ${{ inputs.system_image }}
+      PIXEL_MODEL: "pixel_3a"
 
     defaults:
       run:
@@ -194,27 +199,29 @@ jobs:
 
       - name: Create AVDs
         run: |
-          # Generate emulator ports properly
-          EMULATOR_PORTS_ARRAY=($(seq 5554 2 $((5554 + (EMULATOR_COUNT - 1) * 2))))
-          
-          for i in "${!EMULATOR_PORTS_ARRAY[@]}"; do
+          # Suporte a múltiplos emuladores
+          IFS=',' read -ra API_LEVELS_ARR <<< "${API_LEVELS}"
+          IFS=',' read -ra SYSTEM_IMAGES_ARR <<< "${SYSTEM_IMAGES}"
+          EMULATOR_PORTS_ARRAY=($(seq 5554 2 $((5554 + (${#API_LEVELS_ARR[@]} - 1) * 2))))
+          for i in "${!API_LEVELS_ARR[@]}"; do
             port=${EMULATOR_PORTS_ARRAY[$i]}
-            avd_name="Pixel_${{ inputs.pixel }}_API_${{ inputs.api_level }}_Emulator_$i"
+            api_level=${API_LEVELS_ARR[$i]}
+            system_image=${SYSTEM_IMAGES_ARR[$i]}
+            avd_name="Pixel_3a_API_${api_level}_Emulator_$i"
             echo "Creating AVD: $avd_name for port: $port"
             echo "no" | avdmanager create avd -n $avd_name \
-              -d "pixel_${{ inputs.pixel }}" \
-              -k "${{ env.SYSTEM_IMAGE }}" \
+              -d "pixel_3a" \
+              -k "$system_image" \
               --force
           done
-          
-          # Export the ports for other steps to use
           echo "EMULATOR_PORTS_LIST=${EMULATOR_PORTS_ARRAY[*]}" >> $GITHUB_ENV
 
 
       - name: Start emulators
         run: |
           set -euo pipefail
-
+          IFS=',' read -ra API_LEVELS_ARR <<< "${API_LEVELS}"
+          EMULATOR_PORTS_ARRAY=($(seq 5554 2 $((5554 + (${#API_LEVELS_ARR[@]} - 1) * 2))))
           # Parse language and country from LANG/LC_ALL for emulator props
           LANG_ENV="${LANG:-${LC_ALL:-en_US.UTF-8}}"
           PARSED_LANG=$(echo "$LANG_ENV" | awk -F'[_\.]' '{print $1}')
@@ -234,7 +241,8 @@ jobs:
 
           for i in "${!EMULATOR_PORTS_ARRAY[@]}"; do
             port=${EMULATOR_PORTS_ARRAY[$i]}
-            avd_name="Pixel_${{ inputs.pixel }}_API_${{ inputs.api_level }}_Emulator_$i"
+            api_level=${API_LEVELS_ARR[$i]}
+            avd_name="Pixel_3a_API_${api_level}_Emulator_$i"
             log_file="${{ env.ARTIFACTS_BASE_PATH }}/emulator-logs/emulator-${port}-start.log"
             echo "🚀 Starting $avd_name on port $port"
 
@@ -243,13 +251,6 @@ jobs:
               -gpu swiftshader_indirect \
               -memory "$MEMORY_SIZE" \
               -partition-size 2048 \
-              -cache-size 1024 \
-              -accel on \
-              -prop persist.sys.timezone="$TZ" \
-              -prop persist.sys.language="$PARSED_LANG" \
-              -prop persist.sys.country="$PARSED_COUNTRY" \
-              -prop persist.sys.locale="$BCP47_LOCALE" \
-              -qemu -smp 2 &> "$log_file" &n-size 2048 \
               -cache-size 1024 \
               -accel on \
               -prop persist.sys.timezone="$TZ" \
